@@ -24,7 +24,7 @@
     },
         "autoload": {
         "psr-4": {
-            "matrozov\\yii2_amqp\\": "src"
+            "matrozov\\yii2amqp\\": "src"
         }
     }
 }
