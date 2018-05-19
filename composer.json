@@ -20,7 +20,7 @@
         "enqueue/amqp-lib": "^0.8.23"
     },
     "require-dev": {
-        "yiisoft/yii2": "~2.0.14",
+        "yiisoft/yii2": "~2.0.14"
     },
         "autoload": {
         "psr-4": {
