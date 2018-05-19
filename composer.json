@@ -1,0 +1,30 @@
+{
+    "name": "matrozov/yii2-amqp",
+    "description": "Amqp extension for Yii2",
+    "keywords": ["yii2", "framework", "amqp", "rpc"],
+    "homepage": "https://github.com/matrozov/yii2-amqp",
+    "type": "extension",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Oleg Matrozov",
+            "email": "oleg.matrozov@gmail.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/matrozov/yii2-amqp/issues",
+        "source": "https://github.com/matrozov/yii2-amqp"
+    },
+    "require": {
+        "php": ">=5.4.0",
+        "enqueue/amqp-lib": "^0.8.23"
+    },
+    "require-dev": {
+        "yiisoft/yii2": "~2.0.14",
+    },
+        "autoload": {
+        "psr-4": {
+            "matrozov\\yii2-amqp\\": "src"
+        }
+    }
+}
