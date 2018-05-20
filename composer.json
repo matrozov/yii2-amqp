@@ -22,7 +22,7 @@
     "require-dev": {
         "yiisoft/yii2": "~2.0.14"
     },
-        "autoload": {
+    "autoload": {
         "psr-4": {
             "matrozov\\yii2amqp\\": "src"
         }
