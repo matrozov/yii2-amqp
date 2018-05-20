@@ -86,7 +86,7 @@ class MyJob extends ExecutedJob {
 }
 ```
 
-Create Job object somewhere
+Create Job object somewhere:
 ```php
 $job = new MyJob();
 $job->title = "Hello";
@@ -102,12 +102,12 @@ Specify listen for timeout execution:
 ```bash
 php yii amqp/listen -t=1000
 ```
-1000 ms
 
 Specify listen which queue should be listened:
 ```bash
 php yii amqp/listen test-queue test-queue-2
 ```
+If you doesn't specified queue, listener are listen all queues specified in config.
 
 ### Rpc mode
 
@@ -138,7 +138,7 @@ $job->title = "Dolly";
 $res = Yii::$app->amqp->send('text-exchange', $job, 5000);
 
 if ($res) {
-    var_dump($res->title); // Hello Dolluy
+    var_dump($res->title); // Hello Dolly
 }
 ```
 Oh. When we send RpcRequestJob we automatically wait response in exclusive queue specified timeout.
