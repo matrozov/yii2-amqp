@@ -5,8 +5,6 @@ This extension provides the [Amqp](https://en.wikipedia.org/wiki/Advanced_Messag
 
 For license information check the [LICENSE](LICENSE.md)-file.
 
-Documentation is at [docs/guide-ru/README.md](docs/guide-ru/README.md).
-
 [![Latest Stable Version](https://poser.pugx.org/matrozov/yii2-amqp/v/stable.png)](https://packagist.org/packages/matrozov/yii2-amqp)
 [![Total Downloads](https://poser.pugx.org/matrozov/yii2-amqp/downloads.png)](https://packagist.org/packages/matrozov/yii2-amqp)
 [![License](https://poser.pugx.org/matrozov/yii2-amqp/license)](https://packagist.org/packages/matrozov/yii2-amqp)
@@ -34,7 +32,9 @@ To use this extension, simply add the following code in your application configu
 
 ```php
 return [
-    //....
+    //...
+    'bootstrap' => ['amqp'], // For console configuration
+    //...
     'components' => [
         'amqp' => [
             'class'     => 'matrozov\yii2amqp\Connection',
@@ -72,3 +72,75 @@ return [
 ```
 
 ## Usage
+
+### Simple work with Job
+
+Create Job class:
+```php
+class MyJob extends ExecutedJob {
+    public $title;
+    
+    public function execute() {
+        // Some do here
+    }
+}
+```
+
+Create Job object somewhere
+```php
+$job = new MyJob();
+$job->title = "Hello";
+Yii::$app->amqp->send('text-exchange', $job);
+```
+
+Run listener:
+```bash
+php yii amqp/listen
+```
+
+Specify listen for timeout execution:
+```bash
+php yii amqp/listen -t=1000
+```
+1000 ms
+
+Specify listen which queue should be listened:
+```bash
+php yii amqp/listen test-queue test-queue-2
+```
+
+### Rpc mode
+
+Create Request Job and Response Job class:
+```php
+class MyRpcRequestJob extends RpcRequestJob {
+    public $title;
+    
+    public function execute() {
+        $job = MyRpcResponseJob();
+        $job->title = 'Hello ' . $this->title;
+        
+        return $job;
+    }   
+}
+
+class MyRpcResponseJob extends RpcResponseJob {
+    public $title;
+}
+```
+As you can see, I create object MyRpcResponseJob in MyRpcRequestJob execution method and return them.
+
+Now, create MyRpcRequestJob and send them:
+```php
+$job = new MyRpcRequestJob();
+$job->title = "Dolly";
+
+$res = Yii::$app->amqp->send('text-exchange', $job, 5000);
+
+if ($res) {
+    var_dump($res->title); // Hello Dolluy
+}
+```
+Oh. When we send RpcRequestJob we automatically wait response in exclusive queue specified timeout.
+Method Send() return object RpcResponseJob if we got it or Null.
+RpcResponseJob doesn't contain Execute method, because you got it in main thread (not listener worker).
