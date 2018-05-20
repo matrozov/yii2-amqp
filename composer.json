@@ -1,7 +1,7 @@
 {
     "name": "matrozov/yii2-amqp",
     "description": "Amqp extension for Yii2",
-    "keywords": ["yii2", "yii2-extension", "amqp", "ampq-rpc"],
+    "keywords": ["yii2", "yii2-extension", "amqp", "amqp-rpc"],
     "homepage": "https://github.com/matrozov/yii2-amqp",
     "type": "extension",
     "license": "MIT",
