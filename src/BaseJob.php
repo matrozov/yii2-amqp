@@ -4,6 +4,7 @@ namespace matrozov\yii2amqp;
 use Yii;
 use yii\base\BaseObject;
 use yii\base\ErrorException;
+use yii\base\Model;
 use yii\helpers\Json;
 
 /**
@@ -27,11 +28,19 @@ abstract class BaseJob extends BaseObject
      * @throws
      */
     protected static function toArray($data) {
+        if ($data instanceof Model) {
+            $result = $data->toArray();
+
+            $result['class'] = get_class($data);
+
+            return $result;
+        }
+
         if (is_object($data)) {
             $result = ['class' => get_class($data)];
 
             foreach (get_object_vars($data) as $key => $value) {
-                if ($key == 'class') {
+                if ($key === 'class') {
                     throw new ErrorException('Object can\'t contain `class` property!');
                 }
 
@@ -45,7 +54,7 @@ abstract class BaseJob extends BaseObject
             $result = [];
 
             foreach ($data as $key => $value) {
-                if ($key == 'class') {
+                if ($key === 'class') {
                     throw new ErrorException('Object can\'t contain `class` property!');
                 }
 
@@ -61,7 +70,7 @@ abstract class BaseJob extends BaseObject
     /**
      * @param string $json
      *
-     * @return Job
+     * @return BaseJob
      * @throws
      */
     public static function decode($json) {
@@ -95,6 +104,12 @@ abstract class BaseJob extends BaseObject
             return $result;
         }
 
-        return Yii::createObject($result);
+        $object = Yii::createObject($result);
+
+        if (($object instanceof Model) && !$object->validate()) {
+            throw new ErrorException('Validate `' . get_class($object) . '` error: ' . print_r($object->errors, true));
+        }
+
+        return $object;
     }
 }
