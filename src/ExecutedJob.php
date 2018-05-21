@@ -11,6 +11,9 @@ use yii\base\ErrorException;
  */
 abstract class ExecutedJob extends BaseJob
 {
+    /**
+     * @throws
+     */
     public function execute() {
         throw new ErrorException('Doesn\'t implemented!');
     }

@@ -5,10 +5,10 @@ use Yii;
 use yii\base\Event;
 use yii\base\BaseObject;
 use yii\base\Application as BaseApp;
+use yii\base\InvalidConfigException;
 use yii\console\Application as ConsoleApp;
 use yii\base\BootstrapInterface;
 use yii\base\ErrorException;
-use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpConsumer;
@@ -280,7 +280,7 @@ class Connection extends BaseObject implements BootstrapInterface
     }
 
     /**
-     * @param string      $targetName
+     * @param string      $exchangeName
      * @param ExecutedJob $job
      * @param int         $timeout
      *
@@ -306,6 +306,9 @@ class Connection extends BaseObject implements BootstrapInterface
 
     /**
      * @param AmqpMessage $message
+     *
+     * @return bool
+     * @throws
      */
     protected function handleMessage(AmqpMessage $message) {
         $job = BaseJob::decode($message->getBody());
@@ -347,7 +350,7 @@ class Connection extends BaseObject implements BootstrapInterface
 
         foreach ($queueNames as $queueName) {
             if (!isset($this->_queues[$queueName])) {
-                throw new ErrorException('Queue config `' + $queueName + '` not found!');
+                throw new ErrorException('Queue config `' . $queueName . '` not found!');
             }
 
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
