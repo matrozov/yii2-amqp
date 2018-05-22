@@ -1,6 +1,12 @@
 <?php
 namespace matrozov\yii2amqp;
 
+use matrozov\yii2amqp\jobs\BaseJob;
+use matrozov\yii2amqp\jobs\ExecutedJob;
+use matrozov\yii2amqp\jobs\RpcRequestJob;
+use matrozov\yii2amqp\jobs\RpcResponseJob;
+use matrozov\yii2amqp\serializers\JsonSerializer;
+use matrozov\yii2amqp\serializers\Serializer;
 use Yii;
 use yii\base\Event;
 use yii\base\BaseObject;
@@ -9,6 +15,7 @@ use yii\base\InvalidConfigException;
 use yii\console\Application as ConsoleApp;
 use yii\base\BootstrapInterface;
 use yii\base\ErrorException;
+use yii\di\Instance;
 use yii\helpers\Inflector;
 use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpConsumer;
@@ -23,16 +30,20 @@ use Interop\Queue\PsrDestination;
  * Class Connection
  * @package matrozov\yii2amqp
  *
- * @property string  $dsn        AMQP Server dsn
- * @property string  $host       AMQP Server host
- * @property int     $port       AMQP Server port (default = 5672)
- * @property string  $user       AMQP Server username (default = guest)
- * @property string  $password   AMQP Server port (default = guest)
- * @property string  $vhost      RabbitMQ vhost
+ * @property string     $dsn                AMQP Server dsn
+ * @property string     $host               AMQP Server host
+ * @property int        $port               AMQP Server port (default = 5672)
+ * @property string     $user               AMQP Server username (default = guest)
+ * @property string     $password           AMQP Server port (default = guest)
+ * @property string     $vhost              RabbitMQ vhost
  *
- * @property []array $exchanges  Exchange config list
- * @property []array $queues     Queue config list
- * @property []array $bindings   Binding config list
+ * @property []array    $exchanges          Exchange config list
+ * @property []array    $queues             Queue config list
+ * @property []array    $bindings           Binding config list
+ *
+ * @property int        $defaultRpcTimeout  Default wait rpc response timeout
+ *
+ * @property Serializer $serializer         Serializer
  */
 class Connection extends BaseObject implements BootstrapInterface
 {
@@ -55,14 +66,22 @@ class Connection extends BaseObject implements BootstrapInterface
     public $vhost = '/';
 
 
-    /* @var []array $exchanges Exchange config list */
-    public $exchanges = [];
-
     /* @var []array $queues Queue config list */
     public $queues = [];
 
+    /* @var []array $exchanges Exchange config list */
+    public $exchanges = [];
+
     /* @var []array $bindings Binding config list */
     public $bindings = [];
+
+
+    /* @var int $defaultRpcTimeout Default wait rpc response timeout */
+    public $defaultRpcTimeout = 5000;
+
+
+    /* @var Serializer $serializer */
+    public $serializer = JsonSerializer::class;
 
 
     /* @var AmqpContext $_context */
@@ -74,12 +93,15 @@ class Connection extends BaseObject implements BootstrapInterface
     /* @var []AmqpTopic $_exchanges Exchange list */
     protected $_exchanges = [];
 
+
     /**
      * @inheritdoc
      */
     public function init()
     {
         parent::init();
+
+        $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
         Event::on(BaseApp::class, BaseApp::EVENT_AFTER_REQUEST, function () {
             $this->close();
@@ -202,11 +224,16 @@ class Connection extends BaseObject implements BootstrapInterface
      */
     protected function createMessage(BaseJob $job) {
         $message = $this->_context->createMessage();
+
         $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
-        $message->setBody($job->encode());
-        $message->setContentType('application/json');
+
+        $message->setBody($this->serializer->serialize($job));
+
+        if (!empty($this->serializer->contentType())) {
+            $message->setContentType($this->serializer->contentType());
+        }
 
         return $message;
     }
@@ -219,7 +246,11 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job, $timeout = 0) {
+    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job, $timeout = null) {
+        if ($timeout === null) {
+            $timeout = $this->defaultRpcTimeout;
+        }
+
         $message = $this->createMessage($job);
 
         $queue = $this->_context->createQueue(uniqid('', true));
@@ -251,7 +282,7 @@ class Connection extends BaseObject implements BootstrapInterface
 
             $consumer->acknowledge($responseMessage);
 
-            $responseJob = RpcResponseJob::decode($responseMessage->getBody());
+            $responseJob = $this->serializer->deserialize($responseMessage->getBody());
 
             if (!($responseJob instanceof RpcResponseJob)) {
                 throw new ErrorException('Root object must be RpcResponseJob!');
@@ -287,7 +318,7 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    public function send($exchangeName, ExecutedJob $job, $timeout = 0) {
+    public function send($exchangeName, ExecutedJob $job, $timeout = null) {
         $this->open();
 
         if (!isset($this->_exchanges[$exchangeName])) {
@@ -311,7 +342,7 @@ class Connection extends BaseObject implements BootstrapInterface
      * @throws
      */
     protected function handleMessage(AmqpMessage $message) {
-        $job = BaseJob::decode($message->getBody());
+        $job = $this->serializer->deserialize($message->getBody());
 
         if ($job instanceof RpcRequestJob) {
             $responseJob = $job->execute();

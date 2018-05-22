@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp;
+namespace matrozov\yii2amqp\jobs;
 
 /**
  * Class RpcResponseJob

@@ -1,24 +1,32 @@
 <?php
-namespace matrozov\yii2amqp;
+namespace matrozov\yii2amqp\serializers;
 
+use matrozov\yii2amqp\jobs\BaseJob;
 use Yii;
-use yii\base\BaseObject;
-use yii\base\ErrorException;
-use yii\base\Model;
 use yii\helpers\Json;
+use yii\base\Model;
+use yii\base\ErrorException;
 
 /**
- * Class BaseJob
- * @package matrozov\yii2amqp
+ * Class JsonSerializer
+ * @package matrozov\yii2amqp\serializers
  */
-abstract class BaseJob extends BaseObject
+class JsonSerializer implements Serializer
 {
+    public function contentType()
+    {
+        return 'application/json';
+    }
+
     /**
+     * @param BaseJob $job
+     *
      * @return string
      * @throws
      */
-    public function encode() {
-        return Json::encode(static::toArray($this));
+    public function serialize(BaseJob $job)
+    {
+        return Json::encode($this->toArray($job));
     }
 
     /**
@@ -27,9 +35,14 @@ abstract class BaseJob extends BaseObject
      * @return array
      * @throws
      */
-    protected static function toArray($data) {
+    protected function toArray($data)
+    {
         if ($data instanceof Model) {
             $result = $data->toArray();
+
+            if (isset($result['class'])) {
+                throw new ErrorException('Model can\'t contain `class` property!');
+            }
 
             $result['class'] = get_class($data);
 
@@ -70,11 +83,12 @@ abstract class BaseJob extends BaseObject
     /**
      * @param string $json
      *
-     * @return BaseJob
+     * @return object
      * @throws
      */
-    public static function decode($json) {
-        $job = self::fromArray(Json::decode($json));
+    public function deserialize($json)
+    {
+        $job = $this->fromArray(Json::decode($json));
 
         if (!($job instanceof BaseJob)) {
             throw new ErrorException('Root object must be instance of `BaseJob`!');
@@ -89,7 +103,8 @@ abstract class BaseJob extends BaseObject
      * @return array|object
      * @throws
      */
-    protected static function fromArray($data) {
+    protected function fromArray($data)
+    {
         if (!is_array($data)) {
             return $data;
         }

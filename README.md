@@ -80,6 +80,10 @@ Create Job class:
 class MyJob extends ExecutedJob {
     public $title;
     
+    public function exchangeName() {
+        return 'test-exchange';
+    }
+    
     public function execute() {
         // Some do here
     }
@@ -90,7 +94,8 @@ Create Job object somewhere:
 ```php
 $job = new MyJob();
 $job->title = "Hello";
-Yii::$app->amqp->send('text-exchange', $job);
+
+$job->send();
 ```
 
 Run listener:
@@ -116,6 +121,10 @@ Create Request Job and Response Job class:
 class MyRpcRequestJob extends RpcRequestJob {
     public $title;
     
+    public function exchangeName() {
+        return 'test-exchange';
+    }
+    
     public function execute() {
         $job = MyRpcResponseJob();
         $job->title = 'Hello ' . $this->title;
@@ -135,12 +144,12 @@ Now, create MyRpcRequestJob and send them:
 $job = new MyRpcRequestJob();
 $job->title = "Dolly";
 
-$res = Yii::$app->amqp->send('text-exchange', $job, 5000);
+$res = $job->send();
 
 if ($res) {
     var_dump($res->title); // Hello Dolly
 }
 ```
-Oh. When we send RpcRequestJob we automatically wait response in exclusive queue specified timeout.
+Oh. When we send RpcRequestJob we automatically wait response in exclusive queue.
 Method Send() return object RpcResponseJob if we got it or Null.
 RpcResponseJob doesn't contain Execute method, because you got it in main thread (not listener worker).
