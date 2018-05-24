@@ -1,17 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\traits;
+namespace matrozov\yii2amqp\jobs\simple;
 
-use matrozov\yii2amqp\jobs\ModelResponseJob;
 use Yii;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\jobs\ModelRequestJob;
 
 /**
- * Trait ModelRequestJobTrait
+ * Trait RequestJobTrait
  * @package matrozov\yii2amqp\traits
  */
-trait ModelRequestJobTrait
+trait RequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -35,8 +33,6 @@ trait ModelRequestJobTrait
     /**
      * @param Connection|null $connection
      *
-     * @var ModelResponseJob $response
-     *
      * @return bool
      * @throws
      */
@@ -44,17 +40,7 @@ trait ModelRequestJobTrait
     {
         $connection = $this->connection($connection);
 
-        /* @var ModelRequestJob $this */
-        $response = $connection->send($this->exchangeName(), $this);
-
-        if (!$response) {
-            return false;
-        }
-
-        /* @var ModelResponseJob $response */
-        /* @var ModelRequestJob $this */
-        $this->addErrors($response->errors);
-
-        return $response->success;
+        /* @var RequestJob $this */
+        return $connection->send($this->exchangeName(), $this);
     }
 }

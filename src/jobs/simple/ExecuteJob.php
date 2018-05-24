@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs;
+namespace matrozov\yii2amqp\jobs\simple;
 
 /**
  * Interface ExecuteJob

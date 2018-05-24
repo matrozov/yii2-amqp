@@ -1,16 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\traits;
+namespace matrozov\yii2amqp\jobs\rpc;
 
 use Yii;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\jobs\RequestJob;
 
 /**
- * Trait RequestJobTrait
+ * Trait RpcRequestJobTrait
  * @package matrozov\yii2amqp\traits
  */
-trait RequestJobTrait
+trait RpcRequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -34,14 +33,14 @@ trait RequestJobTrait
     /**
      * @param Connection|null $connection
      *
-     * @return bool
+     * @return RpcResponseJob
      * @throws
      */
     public function send(Connection $connection = null)
     {
         $connection = $this->connection($connection);
 
-        /* @var RequestJob $this */
+        /* @var RpcRequestJob $this */
         return $connection->send($this->exchangeName(), $this);
     }
 }

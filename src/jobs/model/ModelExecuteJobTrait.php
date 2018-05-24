@@ -1,8 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\traits;
-
-use matrozov\yii2amqp\jobs\ModelExecuteJob;
-use matrozov\yii2amqp\jobs\ModelResponseJob;
+namespace matrozov\yii2amqp\jobs\model;
 
 /**
  * Trait ModelExecuteJobTrait

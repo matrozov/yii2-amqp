@@ -1,14 +1,6 @@
 <?php
 namespace matrozov\yii2amqp;
 
-use matrozov\yii2amqp\jobs\BaseJob;
-use matrozov\yii2amqp\jobs\RequestJob;
-use matrozov\yii2amqp\jobs\ExecuteJob;
-use matrozov\yii2amqp\jobs\RpcRequestJob;
-use matrozov\yii2amqp\jobs\RpcExecuteJob;
-use matrozov\yii2amqp\jobs\RpcResponseJob;
-use matrozov\yii2amqp\serializers\JsonSerializer;
-use matrozov\yii2amqp\serializers\Serializer;
 use Yii;
 use yii\base\Application as BaseApp;
 use yii\console\Application as ConsoleApp;
@@ -28,6 +20,14 @@ use Interop\Amqp\AmqpTopic;
 use Interop\Amqp\Impl\AmqpBind;
 use Interop\Queue\PsrDestination;
 use Enqueue\AmqpLib\AmqpConnectionFactory;
+use matrozov\yii2amqp\jobs\BaseJob;
+use matrozov\yii2amqp\jobs\simple\RequestJob;
+use matrozov\yii2amqp\jobs\simple\ExecuteJob;
+use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
+use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
+use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
+use matrozov\yii2amqp\serializers\JsonSerializer;
+use matrozov\yii2amqp\serializers\Serializer;
 
 /**
  * Class Connection

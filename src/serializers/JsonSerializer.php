@@ -1,11 +1,11 @@
 <?php
 namespace matrozov\yii2amqp\serializers;
 
-use matrozov\yii2amqp\jobs\BaseJob;
 use Yii;
 use yii\helpers\Json;
 use yii\base\Model;
 use yii\base\ErrorException;
+use matrozov\yii2amqp\jobs\BaseJob;
 
 /**
  * Class JsonSerializer

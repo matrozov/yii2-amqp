@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\traits;
+namespace matrozov\yii2amqp\jobs\simple;
 
 use Interop\Amqp\AmqpMessage;
 

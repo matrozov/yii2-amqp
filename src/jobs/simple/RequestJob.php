@@ -1,5 +1,7 @@
 <?php
-namespace matrozov\yii2amqp\jobs;
+namespace matrozov\yii2amqp\jobs\simple;
+
+use matrozov\yii2amqp\jobs\BaseJob;
 
 /**
  * Interface RequestJob
