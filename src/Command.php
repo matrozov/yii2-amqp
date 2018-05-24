@@ -40,6 +40,9 @@ class Command extends Controller
         ]);
     }
 
+    /**
+     * @throws
+     */
     public function actionListen()
     {
         $queueNames = func_get_args();

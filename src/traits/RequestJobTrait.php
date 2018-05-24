@@ -1,38 +1,25 @@
 <?php
-namespace matrozov\yii2amqp\jobs;
+namespace matrozov\yii2amqp\traits;
 
 use Yii;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\RequestJob;
 
 /**
- * Class ExecutedJob
- * @package matrozov\yii2amqp
+ * Trait RequestJobTrait
+ * @package matrozov\yii2amqp\traits
  */
-abstract class ExecutedJob extends BaseJob
+trait RequestJobTrait
 {
-    /**
-     * @throws
-     */
-    public function exchangeName() {
-        //return 'exchangeName';
-        throw new ErrorException('Doesn\'t implemented!');
-    }
-
-    /**
-     * @throws
-     */
-    public function execute() {
-        throw new ErrorException('Doesn\'t implemented!');
-    }
-
     /**
      * @param Connection|null $connection
      *
      * @return Connection
      * @throws
      */
-    protected function connection(Connection $connection = null) {
+    protected function connection(Connection $connection = null)
+    {
         if ($connection == null) {
             $connection = Yii::$app->amqp;
         }
@@ -50,9 +37,11 @@ abstract class ExecutedJob extends BaseJob
      * @return bool
      * @throws
      */
-    public function send(Connection $connection = null) {
+    public function send(Connection $connection = null)
+    {
         $connection = $this->connection($connection);
 
+        /* @var RequestJob $this */
         return $connection->send($this->exchangeName(), $this);
     }
 }

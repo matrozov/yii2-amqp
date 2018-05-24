@@ -119,12 +119,6 @@ class JsonSerializer implements Serializer
             return $result;
         }
 
-        $object = Yii::createObject($result);
-
-        if (($object instanceof Model) && !$object->validate()) {
-            throw new ErrorException('Validate `' . get_class($object) . '` error: ' . print_r($object->errors, true));
-        }
-
-        return $object;
+        return Yii::createObject($result);
     }
 }

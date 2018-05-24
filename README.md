@@ -77,7 +77,7 @@ return [
 
 Create Job class:
 ```php
-class MyJob extends ExecutedJob {
+class MyJob extends ExecuteJob {
     public $title;
     
     public function exchangeName() {

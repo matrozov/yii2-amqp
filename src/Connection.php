@@ -2,20 +2,21 @@
 namespace matrozov\yii2amqp;
 
 use matrozov\yii2amqp\jobs\BaseJob;
-use matrozov\yii2amqp\jobs\ExecutedJob;
+use matrozov\yii2amqp\jobs\ExecuteJob;
 use matrozov\yii2amqp\jobs\RpcRequestJob;
 use matrozov\yii2amqp\jobs\RpcResponseJob;
+use matrozov\yii2amqp\jobs\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
 use Yii;
+use yii\base\Application as BaseApp;
+use yii\console\Application as ConsoleApp;
+use yii\di\Instance;
 use yii\base\Event;
 use yii\base\BaseObject;
-use yii\base\Application as BaseApp;
 use yii\base\InvalidConfigException;
-use yii\console\Application as ConsoleApp;
 use yii\base\BootstrapInterface;
 use yii\base\ErrorException;
-use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use Interop\Amqp\AmqpContext;
@@ -24,8 +25,8 @@ use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Interop\Amqp\Impl\AmqpBind;
-use Enqueue\AmqpLib\AmqpConnectionFactory;
 use Interop\Queue\PsrDestination;
+use Enqueue\AmqpLib\AmqpConnectionFactory;
 
 /**
  * Class Connection
@@ -301,6 +302,7 @@ class Connection extends BaseObject implements BootstrapInterface
 
     /**
      * @inheritdoc
+     * @throws
      */
     public function init()
     {
@@ -330,6 +332,7 @@ class Connection extends BaseObject implements BootstrapInterface
 
     /**
      * @inheritdoc
+     * @throws
      */
     public function bootstrap($app)
     {
@@ -482,7 +485,7 @@ class Connection extends BaseObject implements BootstrapInterface
     {
         $message = $this->_context->createMessage();
 
-        $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
+        $message->setDeliveryMode($job->deliveryMode());
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
 
@@ -498,17 +501,12 @@ class Connection extends BaseObject implements BootstrapInterface
     /**
      * @param PsrDestination $target
      * @param RpcRequestJob  $job
-     * @param int            $timeout
      *
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job, $timeout = null)
+    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job)
     {
-        if ($timeout === null) {
-            $timeout = $this->rpcTimeout;
-        }
-
         $message = $this->createMessage($job);
 
         $queue = $this->_context->createQueue(uniqid('', true));
@@ -526,7 +524,7 @@ class Connection extends BaseObject implements BootstrapInterface
         $consumer = $this->_context->createConsumer($queue);
 
         while (true) {
-            $responseMessage = $consumer->receive($timeout);
+            $responseMessage = $consumer->receive($this->rpcTimeout);
 
             if (!$responseMessage) {
                 return null;
@@ -570,14 +568,13 @@ class Connection extends BaseObject implements BootstrapInterface
     }
 
     /**
-     * @param string      $exchangeName
-     * @param ExecutedJob $job
-     * @param int         $timeout
+     * @param string     $exchangeName
+     * @param RequestJob $job
      *
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    public function send($exchangeName, ExecutedJob $job, $timeout = null)
+    public function send($exchangeName, RequestJob $job)
     {
         $this->open();
 
@@ -588,7 +585,7 @@ class Connection extends BaseObject implements BootstrapInterface
         $exchange = $this->_exchanges[$exchangeName];
 
         if ($job instanceof RpcRequestJob) {
-            return $this->internalRpcSend($exchange, $job, $timeout);
+            return $this->internalRpcSend($exchange, $job);
         }
         else {
             return $this->internalSend($exchange, $job);
@@ -605,6 +602,11 @@ class Connection extends BaseObject implements BootstrapInterface
     {
         $job = $this->serializer->deserialize($message->getBody());
 
+        /* @var ExecuteJob $job */
+        if (!($job instanceof ExecuteJob)) {
+            throw new ErrorException('Can\t execute unknown job type');
+        }
+
         if ($job instanceof RpcRequestJob) {
             $responseJob = $job->execute();
 
@@ -618,13 +620,10 @@ class Connection extends BaseObject implements BootstrapInterface
 
             return $this->internalSend($queue, $responseJob);
         }
-        elseif ($job instanceof ExecutedJob) {
-            $job->execute();
 
-            return true;
-        }
+        $job->execute();
 
-        return false;
+        return true;
     }
 
     /**

@@ -2,10 +2,10 @@
 namespace matrozov\yii2amqp\jobs;
 
 /**
- * Interface RpcRequestJob
+ * Interface ExecuteJob
  * @package matrozov\yii2amqp\jobs
  */
-interface RpcRequestJob extends RequestJob
+interface ExecuteJob
 {
-
+    public function execute();
 }
