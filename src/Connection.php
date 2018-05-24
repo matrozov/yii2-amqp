@@ -419,7 +419,7 @@ class Connection extends BaseObject implements BootstrapInterface
             $queueConfig = ArrayHelper::merge($this->defaultQueue, $queueConfig);
 
             foreach (['name', 'flags'] as $field) {
-                if (!isset($queueConfig[$field])) {
+                if (!key_exists($field, $queueConfig)) {
                     throw new InvalidConfigException('Queue config must contain `' . $field . '` field');
                 }
             }
@@ -435,7 +435,7 @@ class Connection extends BaseObject implements BootstrapInterface
             $exchangeConfig = ArrayHelper::merge($this->defaultExchange, $exchangeConfig);
 
             foreach (['name', 'type', 'flags'] as $field) {
-                if (!isset($exchangeConfig[$field])) {
+                if (!key_exists($field, $exchangeConfig)) {
                     throw new InvalidConfigException('Exchange config must contain `' . $field . '` field');
                 }
             }
@@ -452,7 +452,7 @@ class Connection extends BaseObject implements BootstrapInterface
             $bindConfig = ArrayHelper::merge($this->defaultBind, $bindConfig);
 
             foreach (['queue', 'exchange', 'routingKey', 'flags', 'arguments'] as $field) {
-                if (!isset($bindConfig[$field])) {
+                if (!key_exists($field, $bindConfig)) {
                     throw new InvalidConfigException('Bind config must contain `' . $field . '` field');
                 }
             }
