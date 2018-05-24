@@ -449,7 +449,7 @@ class Connection extends BaseObject implements BootstrapInterface
         }
 
         foreach ($this->bindings as $bindConfig) {
-            $bindConfig = ArrayHelper::merge($this->defaultQueue, $bindConfig);
+            $bindConfig = ArrayHelper::merge($this->defaultBind, $bindConfig);
 
             foreach (['queue', 'exchange', 'routingKey', 'flags', 'arguments'] as $field) {
                 if (!isset($bindConfig[$field])) {
