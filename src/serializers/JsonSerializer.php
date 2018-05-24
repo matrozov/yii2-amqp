@@ -88,13 +88,7 @@ class JsonSerializer implements Serializer
      */
     public function deserialize($json)
     {
-        $job = $this->fromArray(Json::decode($json));
-
-        if (!($job instanceof BaseJob)) {
-            throw new ErrorException('Root object must be instance of `BaseJob`!');
-        }
-
-        return $job;
+        return $this->fromArray(Json::decode($json));
     }
 
     /**
