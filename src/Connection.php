@@ -272,8 +272,6 @@ class Connection extends BaseObject implements BootstrapInterface
 
         $this->_context = $factory->createContext();
 
-        $this->_context->setQos(1, 1, false);
-
         $this->setup();
     }
 
