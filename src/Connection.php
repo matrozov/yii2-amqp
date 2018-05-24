@@ -16,6 +16,7 @@ use yii\console\Application as ConsoleApp;
 use yii\base\BootstrapInterface;
 use yii\base\ErrorException;
 use yii\di\Instance;
+use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpConsumer;
@@ -30,40 +31,108 @@ use Interop\Queue\PsrDestination;
  * Class Connection
  * @package matrozov\yii2amqp
  *
- * @property string     $dsn                AMQP Server dsn
- * @property string     $host               AMQP Server host
- * @property int        $port               AMQP Server port (default = 5672)
- * @property string     $user               AMQP Server username (default = guest)
- * @property string     $password           AMQP Server port (default = guest)
- * @property string     $vhost              RabbitMQ vhost
+ * @property string|null    $dsn                AMQP Server dsn
+ * @property string|null    $host               AMQP Server host
+ * @property int|null       $port               AMQP Server port (default = 5672)
+ * @property string|null    $user               AMQP Server username (default = guest)
+ * @property string|null    $password           AMQP Server port (default = guest)
+ * @property string|null    $vhost              RabbitMQ vhost
  *
- * @property []array    $exchanges          Exchange config list
- * @property []array    $queues             Queue config list
- * @property []array    $bindings           Binding config list
+ * @property float|null     $readTimeout
+ * @property float|null     $writeTimeout
+ * @property float|null     $connectionTimeout
  *
- * @property int        $defaultRpcTimeout  Default wait rpc response timeout
+ * @property float|null     $heartbeat
+ * @property bool|null      $persisted
+ * @property bool|null      $lazy
  *
- * @property Serializer $serializer         Serializer
+ * @property bool|null      $qosGlobal
+ * @property int|null       $qosPrefetchSize
+ * @property int|null       $qosPrefetchCount
+ *
+ * @property bool|null      $sslOn
+ * @property bool|null      $sslVerify
+ * @property string|null    $sslCacert
+ * @property string|null    $sslCert
+ * @property string|null    $sslKey
+ *
+ * @property []array        $exchanges          Exchange config list
+ * @property []array        $queues             Queue config list
+ * @property []array        $bindings           Binding config list
+ *
+ * @property []array        $defaultQueue       Default Exchange config
+ * @property []array        $defaultExchange    Default Exchange config
+ * @property []array        $defaultBind        Default Bind config
+ *
+ * @property int            $rpcTimeout         Default wait rpc response timeout
+ *
+ * @property Serializer     $serializer         Serializer
  */
 class Connection extends BaseObject implements BootstrapInterface
 {
-    /* @var string $dsn AMQP DSN */
+    /* @var string|null $dsn AMQP DSN */
     public $dsn;
 
-    /* @var string $host AMQP Server host */
+    /* @var string|null $host AMQP Server host */
     public $host;
 
-    /* @var int $port AMQP Server port (default = 5672) */
+    /* @var int|null $port AMQP Server port (default = 5672) */
     public $port = 5672;
 
-    /* @var string $user AMQP Server username (default = guest) */
+    /* @var string|null $user AMQP Server username (default = guest) */
     public $user = 'guest';
 
-    /* @var string $password AMQP Server port (default = guest) */
+    /* @var string|null $password AMQP Server port (default = guest) */
     public $password = 'guest';
 
-    /* @var string $vhost RabbitMQ vhost */
-    public $vhost = '/';
+    /* @var string|null $vhost RabbitMQ vhost */
+    public $vhost;
+
+
+    /* @var float|null $readTimeout */
+    public $readTimeout;
+
+    /* @var float|null $writeTimeout */
+    public $writeTimeout;
+
+    /* @var float|null $connectionTimeout */
+    public $connectionTimeout;
+
+
+    /* @var float|null $heartbeat */
+    public $heartbeat;
+
+    /* @var bool|null $persisted */
+    public $persisted;
+
+    /* @var bool|null $lazy */
+    public $lazy;
+
+
+    /* @var bool|null $qosGlobal */
+    public $qosGlobal;
+
+    /* @var int|null $qosPrefetchSize */
+    public $qosPrefetchSize;
+
+    /* @var int|null $qosPrefetchCount */
+    public $qosPrefetchCount;
+
+
+    /* @var bool|null $sslOn */
+    public $sslOn;
+
+    /* @var bool|null $sslVerify */
+    public $sslVerify;
+
+    /* @var string|null $sslCacert */
+    public $sslCacert;
+
+    /* @var string|null $sslCert */
+    public $sslCert;
+
+    /* @var string|null $sslKey */
+    public $sslKey;
 
 
     /* @var []array $queues Queue config list */
@@ -76,8 +145,27 @@ class Connection extends BaseObject implements BootstrapInterface
     public $bindings = [];
 
 
-    /* @var int $defaultRpcTimeout Default wait rpc response timeout */
-    public $defaultRpcTimeout = 5000;
+    /* @var []array $defaultQueue Default Queue config */
+    public $defaultQueue = [
+        'flags' => AmqpQueue::FLAG_DURABLE,
+    ];
+
+    /* @var []array $defaultExchange Default Exchange config */
+    public $defaultExchange = [
+        'type'  => AmqpTopic::TYPE_DIRECT,
+        'flags' => AmqpTopic::FLAG_DURABLE,
+    ];
+
+    /* @var []array $defaultBind Default Bind config */
+    public $defaultBind = [
+        'routingKey' => null,
+        'flags'      => AmqpBind::FLAG_NOPARAM,
+        'arguments'  => [],
+    ];
+
+
+    /* @var int $rpcTimeout Default wait rpc response timeout */
+    public $rpcTimeout = 5000;
 
 
     /* @var Serializer $serializer */
@@ -133,7 +221,7 @@ class Connection extends BaseObject implements BootstrapInterface
         }
 
         $app->controllerMap[$this->getCommandId()] = [
-            'class'      => Command::class,
+            'class' => Command::class,
             'connection' => $this,
         ];
     }
@@ -143,18 +231,37 @@ class Connection extends BaseObject implements BootstrapInterface
      *
      * @throws
      */
-    public function open() {
+    public function open()
+    {
         if ($this->_context) {
             $this->close();
         }
 
         $config = [
-            'dsn'   => $this->dsn,
-            'host'  => $this->host,
-            'port'  => $this->port,
-            'user'  => $this->user,
-            'pass'  => $this->password,
-            'vhost' => $this->vhost,
+            'dsn'                => $this->dsn,
+            'host'               => $this->host,
+            'port'               => $this->port,
+            'user'               => $this->user,
+            'pass'               => $this->password,
+            'vhost'              => $this->vhost,
+
+            'read_timeout'       => $this->readTimeout,
+            'write_timeout'      => $this->writeTimeout,
+            'connection_timeout' => $this->connectionTimeout,
+
+            'heartbeat'          => $this->heartbeat,
+            'persisted'          => $this->persisted,
+            'lazy'               => $this->lazy,
+
+            'qos_global'         => $this->qosGlobal,
+            'qos_prefetch_size'  => $this->qosPrefetchSize,
+            'qos_prefetch_count' => $this->qosPrefetchCount,
+
+            'ssl_on'             => $this->sslOn,
+            'ssl_verify'         => $this->sslVerify,
+            'ssl_cacert'         => $this->sslCacert,
+            'ssl_cert'           => $this->sslCert,
+            'ssl_key'            => $this->sslKey,
         ];
 
         $config = array_filter($config, function($value) {
@@ -165,13 +272,16 @@ class Connection extends BaseObject implements BootstrapInterface
 
         $this->_context = $factory->createContext();
 
+        $this->_context->setQos(1, 1, false);
+
         $this->setup();
     }
 
     /**
      * Close amqp connection
      */
-    public function close() {
+    public function close()
+    {
         if (!$this->_context) {
             return;
         }
@@ -185,34 +295,65 @@ class Connection extends BaseObject implements BootstrapInterface
      *
      * @throws
      */
-    protected function setup() {
+    protected function setup()
+    {
         foreach ($this->queues as $queueConfig) {
+            $queueConfig = ArrayHelper::merge($this->defaultQueue, $queueConfig);
+
+            foreach (['name', 'flags'] as $field) {
+                if (!isset($queueConfig[$field])) {
+                    throw new InvalidConfigException('Queue config must contain `' . $field . '` field');
+                }
+            }
+
             $queue = $this->_context->createQueue($queueConfig['name']);
-            $queue->addFlag(AmqpQueue::FLAG_DURABLE);
+            $queue->addFlag($queueConfig['flags']);
             $this->_context->declareQueue($queue);
 
             $this->_queues[$queueConfig['name']] = $queue;
         }
 
         foreach ($this->exchanges as $exchangeConfig) {
+            $exchangeConfig = ArrayHelper::merge($this->defaultExchange, $exchangeConfig);
+
+            foreach (['name', 'type', 'flags'] as $field) {
+                if (!isset($exchangeConfig[$field])) {
+                    throw new InvalidConfigException('Exchange config must contain `' . $field . '` field');
+                }
+            }
+
             $exchange = $this->_context->createTopic($exchangeConfig['name']);
-            $exchange->setType(AmqpTopic::TYPE_DIRECT);
-            $exchange->addFlag(AmqpTopic::FLAG_DURABLE);
+            $exchange->setType($exchangeConfig['type']);
+            $exchange->addFlag($exchangeConfig['flags']);
             $this->_context->declareTopic($exchange);
 
             $this->_exchanges[$exchangeConfig['name']] = $exchange;
         }
 
-        foreach ($this->bindings as $bind) {
-            if (!isset($this->_queues[$bind['queue']])) {
+        foreach ($this->bindings as $bindConfig) {
+            $bindConfig = ArrayHelper::merge($this->defaultQueue, $bindConfig);
+
+            foreach (['queue', 'exchange', 'routingKey', 'flags', 'arguments'] as $field) {
+                if (!isset($bindConfig[$field])) {
+                    throw new InvalidConfigException('Bind config must contain `' . $field . '` field');
+                }
+            }
+
+            if (!isset($this->_queues[$bindConfig['queue']])) {
                 throw new ErrorException('Can\'t bind unknown Queue!');
             }
 
-            if (!isset($this->_exchanges[$bind['exchange']])) {
+            if (!isset($this->_exchanges[$bindConfig['exchange']])) {
                 throw new ErrorException('Can\'t bind unknown Exchange!');
             }
 
-            $this->_context->bind(new AmqpBind($this->_queues[$bind['queue']], $this->_exchanges[$bind['exchange']]));
+            $this->_context->bind(new AmqpBind(
+                $this->_queues[$bindConfig['queue']],
+                $this->_exchanges[$bindConfig['exchange']],
+                $bindConfig['routingKey'],
+                $bindConfig['flags'],
+                $bindConfig['arguments']
+            ));
         }
     }
 
@@ -222,7 +363,8 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return AmqpMessage
      * @throws
      */
-    protected function createMessage(BaseJob $job) {
+    protected function createMessage(BaseJob $job)
+    {
         $message = $this->_context->createMessage();
 
         $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
@@ -246,9 +388,10 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job, $timeout = null) {
+    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job, $timeout = null)
+    {
         if ($timeout === null) {
-            $timeout = $this->defaultRpcTimeout;
+            $timeout = $this->rpcTimeout;
         }
 
         $message = $this->createMessage($job);
@@ -301,7 +444,8 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return bool
      * @throws
      */
-    protected function internalSend(PsrDestination $target, BaseJob $job) {
+    protected function internalSend(PsrDestination $target, BaseJob $job)
+    {
         $message = $this->createMessage($job);
 
         $producer = $this->_context->createProducer();
@@ -318,7 +462,8 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    public function send($exchangeName, ExecutedJob $job, $timeout = null) {
+    public function send($exchangeName, ExecutedJob $job, $timeout = null)
+    {
         $this->open();
 
         if (!isset($this->_exchanges[$exchangeName])) {
@@ -341,7 +486,8 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return bool
      * @throws
      */
-    protected function handleMessage(AmqpMessage $message) {
+    protected function handleMessage(AmqpMessage $message)
+    {
         $job = $this->serializer->deserialize($message->getBody());
 
         if ($job instanceof RpcRequestJob) {
@@ -372,7 +518,8 @@ class Connection extends BaseObject implements BootstrapInterface
      *
      * @throws
      */
-    public function listen($queueNames = null, $timeout = 0) {
+    public function listen($queueNames = null, $timeout = 0)
+    {
         $this->open();
 
         if (empty($queueNames)) {
