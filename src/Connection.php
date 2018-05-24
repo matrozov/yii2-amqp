@@ -31,12 +31,12 @@ use Interop\Queue\PsrDestination;
  * Class Connection
  * @package matrozov\yii2amqp
  *
- * @property string|null    $dsn                AMQP Server dsn
- * @property string|null    $host               AMQP Server host
- * @property int|null       $port               AMQP Server port (default = 5672)
- * @property string|null    $user               AMQP Server username (default = guest)
- * @property string|null    $password           AMQP Server port (default = guest)
- * @property string|null    $vhost              RabbitMQ vhost
+ * @property string|null    $dsn
+ * @property string|null    $host
+ * @property int|null       $port
+ * @property string|null    $user
+ * @property string|null    $password
+ * @property string|null    $vhost
  *
  * @property float|null     $readTimeout
  * @property float|null     $writeTimeout
@@ -56,129 +56,246 @@ use Interop\Queue\PsrDestination;
  * @property string|null    $sslCert
  * @property string|null    $sslKey
  *
- * @property []array        $exchanges          Exchange config list
- * @property []array        $queues             Queue config list
- * @property []array        $bindings           Binding config list
+ * @property []array        $exchanges
+ * @property []array        $queues
+ * @property []array        $bindings
  *
- * @property []array        $defaultQueue       Default Exchange config
- * @property []array        $defaultExchange    Default Exchange config
- * @property []array        $defaultBind        Default Bind config
+ * @property []array        $defaultQueue
+ * @property []array        $defaultExchange
+ * @property []array        $defaultBind
  *
- * @property int            $rpcTimeout         Default wait rpc response timeout
+ * @property int            $rpcTimeout
  *
- * @property Serializer     $serializer         Serializer
+ * @property Serializer     $serializer
  */
 class Connection extends BaseObject implements BootstrapInterface
 {
-    /* @var string|null $dsn AMQP DSN */
+    /**
+     * The connection to the borker could be configured as an array of options
+     * or as a DSN string like amqp:, amqps:, amqps://user:pass@localhost:1000/vhost.
+     *
+     * @var string
+     */
     public $dsn;
 
-    /* @var string|null $host AMQP Server host */
+    /**
+     * The message queue broker's host.
+     *
+     * @var string|null
+     */
     public $host;
 
-    /* @var int|null $port AMQP Server port (default = 5672) */
-    public $port = 5672;
+    /**
+     * The message queue broker's port.
+     *
+     * @var string|null
+     */
+    public $port;
 
-    /* @var string|null $user AMQP Server username (default = guest) */
-    public $user = 'guest';
+    /**
+     * This is RabbitMQ user which is used to login on the broker.
+     *
+     * @var string|null
+     */
+    public $user;
 
-    /* @var string|null $password AMQP Server port (default = guest) */
-    public $password = 'guest';
+    /**
+     * This is RabbitMQ password which is used to login on the broker.
+     *
+     * @var string|null
+     */
+    public $password;
 
-    /* @var string|null $vhost RabbitMQ vhost */
+    /**
+     * Virtual hosts provide logical grouping and separation of resources.
+     *
+     * @var string|null
+     */
     public $vhost;
 
 
-    /* @var float|null $readTimeout */
+    /**
+     * The time PHP socket waits for an information while reading. In seconds.
+     *
+     * @var float|null
+     */
     public $readTimeout;
 
-    /* @var float|null $writeTimeout */
+    /**
+     * The time PHP socket waits for an information while witting. In seconds.
+     *
+     * @var float|null
+     */
     public $writeTimeout;
 
-    /* @var float|null $connectionTimeout */
+    /**
+     * The time RabbitMQ keeps the connection on idle. In seconds.
+     *
+     * @var float|null
+     */
     public $connectionTimeout;
 
 
-    /* @var float|null $heartbeat */
+    /**
+     * The periods of time PHP pings the broker in order to prolong the connection timeout. In seconds.
+     *
+     * @var float|null
+     */
     public $heartbeat;
 
-    /* @var bool|null $persisted */
+    /**
+     * PHP uses one shared connection if set true.
+     *
+     * @var bool|null
+     */
     public $persisted;
 
-    /* @var bool|null $lazy */
+    /**
+     * The connection will be established as later as possible if set true.
+     *
+     * @var bool|null
+     */
     public $lazy;
 
 
-    /* @var bool|null $qosGlobal */
+    /**
+     * If false prefetch_count option applied separately to each new consumer on the channel
+     * If true prefetch_count option shared across all consumers on the channel.
+     *
+     * @var bool|null
+     */
     public $qosGlobal;
 
-    /* @var int|null $qosPrefetchSize */
+    /**
+     * Defines number of message pre-fetched in advance on a channel basis.
+     *
+     * @var int|null
+     */
     public $qosPrefetchSize;
 
-    /* @var int|null $qosPrefetchCount */
+    /**
+     * Defines number of message pre-fetched in advance per consumer.
+     *
+     * @var int|null
+     */
     public $qosPrefetchCount;
 
 
-    /* @var bool|null $sslOn */
+    /**
+     * Defines whether secure connection should be used or not.
+     *
+     * @var bool|null
+     */
     public $sslOn;
 
-    /* @var bool|null $sslVerify */
+    /**
+     * Require verification of SSL certificate used.
+     *
+     * @var bool|null
+     */
     public $sslVerify;
 
-    /* @var string|null $sslCacert */
+    /**
+     * Location of Certificate Authority file on local filesystem which should be used with the verify_peer context option to authenticate the identity of the remote peer.
+     *
+     * @var string|null
+     */
     public $sslCacert;
 
-    /* @var string|null $sslCert */
+    /**
+     * Path to local certificate file on filesystem.
+     *
+     * @var string|null
+     */
     public $sslCert;
 
-    /* @var string|null $sslKey */
+    /**
+     * Path to local private key file on filesystem in case of separate files for certificate (local_cert) and private key.
+     *
+     * @var string|null
+     */
     public $sslKey;
 
-
-    /* @var []array $queues Queue config list */
+    /**
+     * Queue config list
+     *
+     * @var []array $queues
+     */
     public $queues = [];
 
-    /* @var []array $exchanges Exchange config list */
+    /**
+     * Exchange config list
+     *
+     * @var []array $exchanges
+     */
     public $exchanges = [];
 
-    /* @var []array $bindings Binding config list */
+    /**
+     * Binding config list
+     *
+     * @var []array $bindings
+     */
     public $bindings = [];
 
-
-    /* @var []array $defaultQueue Default Queue config */
+    /**
+     * Default Queue config
+     *
+     * @var []array $defaultQueue
+     */
     public $defaultQueue = [
         'flags' => AmqpQueue::FLAG_DURABLE,
     ];
 
-    /* @var []array $defaultExchange Default Exchange config */
+    /**
+     * Default Exchange config
+     *
+     * @var []array $defaultExchange
+     */
     public $defaultExchange = [
         'type'  => AmqpTopic::TYPE_DIRECT,
         'flags' => AmqpTopic::FLAG_DURABLE,
     ];
 
-    /* @var []array $defaultBind Default Bind config */
+    /**
+     * Default Bind config
+     *
+     * @var []array $defaultBind
+     */
     public $defaultBind = [
         'routingKey' => null,
         'flags'      => AmqpBind::FLAG_NOPARAM,
         'arguments'  => [],
     ];
 
-
-    /* @var int $rpcTimeout Default wait rpc response timeout */
+    /**
+     * Default wait rpc response timeout
+     *
+     * @var int $rpcTimeout
+     */
     public $rpcTimeout = 5000;
 
-
-    /* @var Serializer $serializer */
+    /**
+     * @var Serializer $serializer
+     */
     public $serializer = JsonSerializer::class;
 
-
-    /* @var AmqpContext $_context */
+    /**
+     * @var AmqpContext $_context
+     */
     protected $_context;
 
-    /* @var []AmqpQueue $_queues Queue list */
+    /**
+     * AmqpQueue list
+     *
+     * @var []AmqpQueue $_queues
+     */
     protected $_queues = [];
 
-    /* @var []AmqpTopic $_exchanges Exchange list */
+    /**
+     * AmqpTopic list
+     *
+     * @var []AmqpTopic $_exchanges
+     */
     protected $_exchanges = [];
 
 
