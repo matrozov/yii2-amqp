@@ -5,7 +5,7 @@ namespace matrozov\yii2amqp\jobs;
  * Interface ModelExecuteJob
  * @package matrozov\yii2amqp\jobs
  */
-interface ModelExecuteJob extends ExecuteJob
+interface ModelExecuteJob extends RpcExecuteJob
 {
     public function validate();
     public function save();

@@ -2,10 +2,11 @@
 namespace matrozov\yii2amqp;
 
 use matrozov\yii2amqp\jobs\BaseJob;
+use matrozov\yii2amqp\jobs\RequestJob;
 use matrozov\yii2amqp\jobs\ExecuteJob;
 use matrozov\yii2amqp\jobs\RpcRequestJob;
+use matrozov\yii2amqp\jobs\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\RpcResponseJob;
-use matrozov\yii2amqp\jobs\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
 use Yii;
@@ -607,7 +608,7 @@ class Connection extends BaseObject implements BootstrapInterface
             throw new ErrorException('Can\t execute unknown job type');
         }
 
-        if ($job instanceof RpcRequestJob) {
+        if ($job instanceof RpcExecuteJob) {
             $responseJob = $job->execute();
 
             if (!$responseJob || !($responseJob instanceof RpcResponseJob)) {
