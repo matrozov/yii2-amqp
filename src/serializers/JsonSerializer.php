@@ -39,6 +39,7 @@ class JsonSerializer implements Serializer
     {
         if ($data instanceof Model) {
             $result = $data->toArray();
+            $result['scenario'] = $data->scenario;
 
             if (isset($result['class'])) {
                 throw new ErrorException('Model can\'t contain `class` property!');
