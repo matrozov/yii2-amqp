@@ -26,6 +26,7 @@ use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
+use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
 
@@ -545,6 +546,10 @@ class Connection extends BaseObject implements BootstrapInterface
                 throw new ErrorException('Root object must be RpcResponseJob!');
             }
 
+            if ($responseJob instanceof RpcFalseResponseJob) {
+                return false;
+            }
+
             return $responseJob;
         }
 
@@ -611,7 +616,11 @@ class Connection extends BaseObject implements BootstrapInterface
         if ($job instanceof RpcExecuteJob) {
             $responseJob = $job->execute();
 
-            if (!$responseJob || !($responseJob instanceof RpcResponseJob)) {
+            if (!$responseJob) {
+                $responseJob = new RpcFalseResponseJob();
+            }
+
+            if (!($responseJob instanceof RpcResponseJob)) {
                 throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
             }
 

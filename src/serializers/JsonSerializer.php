@@ -38,47 +38,32 @@ class JsonSerializer implements Serializer
     protected function toArray($data)
     {
         if ($data instanceof Model) {
-            $result = $data->toArray();
-            $result['scenario'] = $data->scenario;
-
-            if (isset($result['class'])) {
-                throw new ErrorException('Model can\'t contain `class` property!');
-            }
-
-            $result['class'] = get_class($data);
-
-            return $result;
+            $arrayData = $data->toArray();
+        }
+        elseif (is_object($data)) {
+            $arrayData = get_object_vars($data);
+        }
+        elseif (is_array($data)) {
+            $arrayData = $data;
+        }
+        else {
+            return $data;
         }
 
-        if (is_object($data)) {
-            $result = ['class' => get_class($data)];
+        $result = [];
 
-            foreach (get_object_vars($data) as $key => $value) {
-                if ($key === 'class') {
-                    throw new ErrorException('Object can\'t contain `class` property!');
-                }
-
-                $result[$key] = self::toArray($value);
+        foreach ($arrayData as $key => $value) {
+            if ($key === 'class') {
+                throw new ErrorException('Object can\'t contain `class` property!');
             }
 
-            return $result;
+            $result[$key] = self::toArray($value);
         }
 
-        if (is_array($data)) {
-            $result = [];
+        $result['scenario'] = $data->scenario;
+        $result['class']    = get_class($data);
 
-            foreach ($data as $key => $value) {
-                if ($key === 'class') {
-                    throw new ErrorException('Object can\'t contain `class` property!');
-                }
-
-                $result[$key] = self::toArray($value);
-            }
-
-            return $result;
-        }
-
-        return $data;
+        return $result;
     }
 
     /**
