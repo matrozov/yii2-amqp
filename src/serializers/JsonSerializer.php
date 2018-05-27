@@ -37,7 +37,11 @@ class JsonSerializer implements Serializer
      */
     protected function toArray($data)
     {
+        $result = [];
+
         if ($data instanceof Model) {
+            $result['scenario'] = $data->getScenario();
+
             $arrayData = $data->toArray();
         }
         elseif (is_object($data)) {
@@ -50,8 +54,6 @@ class JsonSerializer implements Serializer
             return $data;
         }
 
-        $result = [];
-
         foreach ($arrayData as $key => $value) {
             if ($key === 'class') {
                 throw new ErrorException('Object can\'t contain `class` property!');
@@ -60,8 +62,7 @@ class JsonSerializer implements Serializer
             $result[$key] = self::toArray($value);
         }
 
-        $result['scenario'] = $data->scenario;
-        $result['class']    = get_class($data);
+        $result['class'] = get_class($data);
 
         return $result;
     }
