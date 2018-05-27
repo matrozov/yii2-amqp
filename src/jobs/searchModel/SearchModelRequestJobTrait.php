@@ -1,15 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model;
+namespace matrozov\yii2amqp\jobs\searchModel;
 
 use Yii;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
 
 /**
- * Trait ModelRequestJobTrait
+ * Trait SearchModelRequestJobTrait
  * @package matrozov\yii2amqp\traits
  */
-trait ModelRequestJobTrait
+trait SearchModelRequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -33,26 +33,26 @@ trait ModelRequestJobTrait
     /**
      * @param Connection|null $connection
      *
-     * @var ModelResponseJob $response
+     * @var SearchModelResponseJob $response
      *
      * @return bool
      * @throws
      */
-    public function save(Connection $connection = null)
+    public function search(Connection $connection = null)
     {
         $connection = $this->connection($connection);
 
-        /* @var ModelRequestJob $this */
+        /* @var SearchModelRequestJob $this */
         $response = $connection->send($this->exchangeName(), $this);
 
         if (!$response) {
             return false;
         }
 
-        /* @var ModelResponseJob $response */
-        /* @var ModelRequestJob $this */
+        /* @var SearchModelResponseJob $response */
+        /* @var SearchModelRequestJob $this */
         $this->addErrors($response->errors);
 
-        return $response->success;
+        return $response->success ? $response->items : false;
     }
 }
