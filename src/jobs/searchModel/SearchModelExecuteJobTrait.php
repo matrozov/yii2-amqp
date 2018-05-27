@@ -17,8 +17,10 @@ trait SearchModelExecuteJobTrait
         /* @var SearchModelExecuteJob $this */
         $response->success = $this->validate();
 
-        /* @var SearchModelExecuteJob $this */
-        $response->items   = $this->search();
+        if ($response->success) {
+            /* @var SearchModelExecuteJob $this */
+            $response->items = $this->search();
+        }
 
         /* @var SearchModelExecuteJob $this */
         $response->errors  = $this->getErrors();
