@@ -40,6 +40,11 @@ trait SearchModelRequestJobTrait
      */
     public function search(Connection $connection = null)
     {
+        /* @var SearchModelRequestJob $this */
+        if (!$this->validate()) {
+            return false;
+        }
+
         $connection = $this->connection($connection);
 
         /* @var SearchModelRequestJob $this */

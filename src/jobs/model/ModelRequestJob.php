@@ -9,7 +9,8 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
  */
 interface ModelRequestJob extends RpcRequestJob
 {
-    public function clearErrors($attribute = null);
+    public function validate();
 
+    public function clearErrors($attribute = null);
     public function addErrors(array $items);
 }

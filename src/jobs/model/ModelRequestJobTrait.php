@@ -40,6 +40,11 @@ trait ModelRequestJobTrait
      */
     public function save(Connection $connection = null)
     {
+        /* @var ModelRequestJob $this */
+        if (!$this->validate()) {
+            return false;
+        }
+
         $connection = $this->connection($connection);
 
         /* @var ModelRequestJob $this */
