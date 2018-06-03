@@ -58,6 +58,12 @@ trait ModelRequestJobTrait
         /* @var ModelRequestJob $this */
         $this->addErrors($response->errors);
 
+        if ($response->success) {
+            foreach ($response->primaryKeys as $key => $value) {
+                $this->$key = $value;
+            }
+        }
+
         return $response->success;
     }
 }

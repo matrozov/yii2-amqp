@@ -12,6 +12,7 @@ class ModelResponseJob implements RpcResponseJob
 {
     use BaseJobTrait;
 
-    public $success;
-    public $errors;
+    public $success     = false;
+    public $primaryKeys = [];
+    public $errors      = [];
 }
