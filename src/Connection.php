@@ -59,6 +59,8 @@ use matrozov\yii2amqp\serializers\Serializer;
  * @property string|null    $sslCert
  * @property string|null    $sslKey
  *
+ * @property int            $maxAttempts
+ *
  * @property []array        $exchanges
  * @property []array        $queues
  * @property []array        $bindings
@@ -73,6 +75,8 @@ use matrozov\yii2amqp\serializers\Serializer;
  */
 class Connection extends BaseObject implements BootstrapInterface
 {
+    const ATTEMPT = 'amqp-attempt';
+
     /**
      * The connection to the borker could be configured as an array of options
      * or as a DSN string like amqp:, amqps:, amqps://user:pass@localhost:1000/vhost.
@@ -218,6 +222,15 @@ class Connection extends BaseObject implements BootstrapInterface
      * @var string|null
      */
     public $sslKey;
+
+
+    /**
+     * Max attempts to requeue message
+     *
+     * @var int $maxAttempts
+     */
+    public $maxAttempts = 1;
+
 
     /**
      * Queue config list
@@ -490,6 +503,7 @@ class Connection extends BaseObject implements BootstrapInterface
         $message->setDeliveryMode($job->deliveryMode());
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
+        $message->setProperty(self::ATTEMPT, 1);
 
         $message->setBody($this->serializer->serialize($job));
 
@@ -563,7 +577,7 @@ class Connection extends BaseObject implements BootstrapInterface
      * @return bool
      * @throws
      */
-    protected function internalSend(PsrDestination $target, BaseJob $job)
+    protected function internalSimpleSend(PsrDestination $target, BaseJob $job)
     {
         $message = $this->createMessage($job);
 
@@ -594,26 +608,35 @@ class Connection extends BaseObject implements BootstrapInterface
             return $this->internalRpcSend($exchange, $job);
         }
         else {
-            return $this->internalSend($exchange, $job);
+            return $this->internalSimpleSend($exchange, $job);
         }
     }
 
     /**
-     * @param AmqpMessage $message
+     * @param AmqpMessage    $message
+     * @param RpcResponseJob $responseJob
      *
      * @return bool
+     */
+    protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
+    {
+        $queueName = $message->getReplyTo();
+
+        $queue = $this->_context->createQueue($queueName);
+
+        return $this->internalSimpleSend($queue, $responseJob);
+    }
+
+    /**
+     * @param RpcExecuteJob $job
+     * @param AmqpMessage   $message
+     * @param AmqpConsumer  $consumer
+     *
      * @throws
      */
-    protected function handleMessage(AmqpMessage $message)
+    protected function handleRpcMessage(RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $job = $this->serializer->deserialize($message->getBody());
-
-        /* @var ExecuteJob $job */
-        if (!($job instanceof ExecuteJob)) {
-            throw new ErrorException('Can\t execute unknown job type');
-        }
-
-        if ($job instanceof RpcExecuteJob) {
+        try {
             $responseJob = $job->execute();
 
             if (!$responseJob) {
@@ -624,14 +647,74 @@ class Connection extends BaseObject implements BootstrapInterface
                 throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
             }
 
-            $queueName = $message->getReplyTo();
+            $this->replyRpcMessage($message, $responseJob);
+        }
+        catch (\Exception $e) {
+            if ($this->redelivery($message, $consumer)) {
+                $consumer->acknowledge($message);
+            }
+            else {
+                $responseJob = new RpcFalseResponseJob();
 
-            $queue = $this->_context->createQueue($queueName);
+                $this->replyRpcMessage($message, $responseJob);
 
-            return $this->internalSend($queue, $responseJob);
+                $consumer->reject($message, false);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param ExecuteJob   $job
+     * @param AmqpMessage  $message
+     * @param AmqpConsumer $consumer
+     *
+     * @throws
+     */
+    protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        try {
+            $job->execute();
+        }
+        catch (\Exception $e) {
+            if ($this->redelivery($message, $consumer)) {
+                $consumer->acknowledge($message);
+            }
+            else {
+                $consumer->reject($message, false);
+            }
+
+            throw $e;
         }
 
-        $job->execute();
+        $consumer->acknowledge($message);
+    }
+
+    /**
+     * @param AmqpMessage  $message
+     * @param AmqpConsumer $consumer
+     *
+     * @return bool
+     * @throws
+     */
+    protected function handleMessage(AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        $job = $this->serializer->deserialize($message->getBody());
+
+        /* @var ExecuteJob $job */
+        if (!($job instanceof ExecuteJob)) {
+            $consumer->reject($message, false);
+
+            throw new ErrorException('Can\'t execute unknown job type');
+        }
+
+        if ($job instanceof RpcExecuteJob) {
+            $this->handleRpcMessage($job, $message, $consumer);
+        }
+        else {
+            $this->handleSimpleMessage($job, $message, $consumer);
+        }
 
         return true;
     }
@@ -657,18 +740,34 @@ class Connection extends BaseObject implements BootstrapInterface
 
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
 
-            $this->_context->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
-                if ($this->handleMessage($message)) {
-                    $consumer->acknowledge($message);
-                }
-                else {
-                    $consumer->reject($message, false);
-                }
-
-                return true;
-            });
+            $this->_context->subscribe($consumer, [$this, 'handleMessage']);
         }
 
         $this->_context->consume($timeout);
+    }
+
+    /**
+     * @param AmqpMessage $message
+     *
+     * @return bool
+     * @throws
+     */
+    protected function redelivery(AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        $attempt = $message->getProperty(self::ATTEMPT, 1);
+
+        if ($attempt >= $this->maxAttempts) {
+            return false;
+        }
+
+        $newMessage = $this->_context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
+        $newMessage->setDeliveryMode($message->getDeliveryMode());
+
+        $newMessage->setProperty(self::ATTEMPT, ++$attempt);
+
+        $produces = $this->_context->createProducer();
+        $produces->send($consumer->getQueue(), $newMessage);
+
+        return true;
     }
 }

@@ -2,7 +2,6 @@
 namespace matrozov\yii2amqp\jobs\rpc;
 
 use Yii;
-use yii\base\Model;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
 
@@ -39,15 +38,19 @@ trait RpcRequestJobTrait
      */
     public function send(Connection $connection = null)
     {
-        if ($this instanceof Model) {
-            if (!$this->validate()) {
-                return false;
-            }
-        }
-
         $connection = $this->connection($connection);
 
         /* @var RpcRequestJob $this */
-        return $connection->send($this->exchangeName(), $this);
+        $response = $connection->send($this->exchangeName(), $this);
+
+        if (!$response) {
+            return false;
+        }
+
+        if ($response instanceof RpcFalseResponseJob) {
+            return false;
+        }
+
+        return $response;
     }
 }

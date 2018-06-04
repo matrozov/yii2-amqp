@@ -4,6 +4,7 @@ namespace matrozov\yii2amqp\jobs\searchModel;
 use Yii;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 
 /**
  * Trait SearchModelRequestJobTrait
@@ -52,6 +53,14 @@ trait SearchModelRequestJobTrait
 
         if (!$response) {
             return false;
+        }
+
+        if ($response instanceof RpcFalseResponseJob) {
+            return false;
+        }
+
+        if (!($response instanceof SearchModelResponseJob)) {
+            throw new ErrorException('Response isn\'t SearchModelResponseJob');
         }
 
         /* @var SearchModelResponseJob $response */
