@@ -715,8 +715,6 @@ class Connection extends BaseObject implements BootstrapInterface
         else {
             $this->handleSimpleMessage($job, $message, $consumer);
         }
-
-        return true;
     }
 
     /**
@@ -740,7 +738,11 @@ class Connection extends BaseObject implements BootstrapInterface
 
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
 
-            $this->_context->subscribe($consumer, [$this, 'handleMessage']);
+            $this->_context->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
+                $this->handleMessage($message, $consumer);
+
+                return true;
+            });
         }
 
         $this->_context->consume($timeout);
