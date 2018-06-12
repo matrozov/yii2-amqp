@@ -9,8 +9,6 @@ use yii\base\ErrorException;
 
 class ModelGetInternalRequestJob implements RpcRequestJob, RpcExecuteJob
 {
-    use BaseJobTrait;
-
     public $className;
     public $conditions;
 
@@ -18,6 +16,12 @@ class ModelGetInternalRequestJob implements RpcRequestJob, RpcExecuteJob
     {
         /* @var ModelGetRequestJob $className */
         return $className::exchangeName();
+    }
+
+    public static function deliveryMode()
+    {
+        /* @var ModelGetRequestJob $className */
+        return $className::deliveryMode();
     }
 
     /**

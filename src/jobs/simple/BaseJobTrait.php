@@ -12,7 +12,7 @@ trait BaseJobTrait
     /**
      * @return int
      */
-    public function deliveryMode()
+    public static function deliveryMode()
     {
         return AmqpMessage::DELIVERY_MODE_PERSISTENT;
     }
