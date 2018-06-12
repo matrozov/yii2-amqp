@@ -1,27 +1,28 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\get;
 
-use matrozov\yii2amqp\jobs\model\save\ModelGetRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\simple\BaseJobTrait;
 use yii\base\ErrorException;
 
+/**
+ * Class ModelGetInternalRequestJob
+ * @package matrozov\yii2amqp\jobs\model\get
+ *
+ * @property string $className
+ * @property        $conditions
+ */
 class ModelGetInternalRequestJob implements RpcRequestJob, RpcExecuteJob
 {
+    use BaseJobTrait;
+
     public $className;
     public $conditions;
 
     public static function exchangeName()
     {
-        /* @var ModelGetRequestJob $className */
-        return $className::exchangeName();
-    }
-
-    public static function deliveryMode()
-    {
-        /* @var ModelGetRequestJob $className */
-        return $className::deliveryMode();
+        return '';
     }
 
     /**

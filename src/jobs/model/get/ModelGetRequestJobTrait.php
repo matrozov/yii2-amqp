@@ -46,8 +46,7 @@ trait ModelGetRequestJobTrait
         $request->className  = static::class;
         $request->conditions = $conditions;
 
-        /* @var ModelGetRequestJob $this */
-        $response = $connection->send($request);
+        $response = $connection->send($request, static::exchangeName());
 
         if (!$response) {
             return false;
