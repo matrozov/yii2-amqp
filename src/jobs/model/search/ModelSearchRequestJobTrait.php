@@ -13,25 +13,6 @@ use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 trait ModelSearchRequestJobTrait
 {
     /**
-     * @param Connection|null $connection
-     *
-     * @return Connection
-     * @throws
-     */
-    protected static function connection(Connection $connection = null)
-    {
-        if ($connection == null) {
-            $connection = Yii::$app->amqp;
-        }
-
-        if (!$connection || !($connection instanceof Connection)) {
-            throw new ErrorException('Can\'t get connection!');
-        }
-
-        return $connection;
-    }
-
-    /**
      * @param Connection|null              $connection
      *
      * @var ModelSearchInternalResponseJob $response
@@ -46,7 +27,7 @@ trait ModelSearchRequestJobTrait
             return false;
         }
 
-        $connection = static::connection($connection);
+        $connection = Connection::instance($connection);
 
         /* @var ModelSearchRequestJob $this */
         $response = $connection->send($this);

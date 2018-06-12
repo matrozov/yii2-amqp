@@ -13,25 +13,6 @@ use matrozov\yii2amqp\Connection;
 trait ModelGetRequestJobTrait
 {
     /**
-     * @param Connection|null $connection
-     *
-     * @return Connection
-     * @throws
-     */
-    protected static function connection(Connection $connection = null)
-    {
-        if ($connection == null) {
-            $connection = Yii::$app->amqp;
-        }
-
-        if (!$connection || !($connection instanceof Connection)) {
-            throw new ErrorException('Can\'t get connection!');
-        }
-
-        return $connection;
-    }
-
-    /**
      * @param                 $conditions
      * @param Connection|null $connection
      *
@@ -40,7 +21,7 @@ trait ModelGetRequestJobTrait
      */
     public static function findOne($conditions, Connection $connection = null)
     {
-        $connection = static::connection($connection);
+        $connection = Connection::instance($connection);
 
         $request = new ModelGetInternalRequestJob();
         $request->className  = static::class;

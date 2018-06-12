@@ -316,6 +316,12 @@ class Connection extends BaseObject implements BootstrapInterface
 
 
     /**
+     * @var Connection $_instance
+     */
+    protected static $_instance;
+
+
+    /**
      * @inheritdoc
      * @throws
      */
@@ -328,6 +334,27 @@ class Connection extends BaseObject implements BootstrapInterface
         Event::on(BaseApp::class, BaseApp::EVENT_AFTER_REQUEST, function () {
             $this->close();
         });
+
+        self::$_instance = $this;
+    }
+
+    /**
+     * @param Connection|null $connection
+     *
+     * @return Connection
+     * @throws
+     */
+    public static function instance(Connection $connection = null)
+    {
+        if ($connection == null) {
+            $connection = self::$_instance;
+        }
+
+        if (!$connection || !($connection instanceof Connection)) {
+            throw new ErrorException('Can\'t get connection!');
+        }
+
+        return $connection;
     }
 
     /**
