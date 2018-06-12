@@ -1,7 +1,6 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\get;
 
-use matrozov\yii2amqp\jobs\model\get\ModelGetInternalRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 use Yii;
 use yii\base\ErrorException;
