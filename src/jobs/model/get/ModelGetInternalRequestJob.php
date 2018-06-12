@@ -34,7 +34,7 @@ class ModelGetInternalRequestJob implements RpcRequestJob, RpcExecuteJob
         $modelClass = $this->className;
 
         /* @var ModelGetExecuteJob $model */
-        $model = $modelClass::get($this->conditions);
+        $model = $modelClass::executeFindOne($this->conditions);
 
         if (!$model) {
             return false;

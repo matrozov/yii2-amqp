@@ -9,5 +9,5 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
  */
 interface ModelGetRequestJob extends RpcRequestJob
 {
-    public static function get($conditions);
+    public static function findOne($conditions);
 }

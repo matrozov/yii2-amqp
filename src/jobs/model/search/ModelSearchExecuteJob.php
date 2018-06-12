@@ -10,7 +10,7 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 interface ModelSearchExecuteJob extends RpcExecuteJob
 {
     public function validate();
-    public function search();
-
     public function getErrors();
+
+    public function executeSearch();
 }

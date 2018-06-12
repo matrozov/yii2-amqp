@@ -10,7 +10,7 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 interface ModelSaveExecuteJob extends RpcExecuteJob
 {
     public function validate();
-    public function save();
-
     public function getErrors();
+
+    public function executeSave();
 }

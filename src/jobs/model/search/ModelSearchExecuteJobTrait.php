@@ -19,7 +19,7 @@ trait ModelSearchExecuteJobTrait
 
         if ($response->success) {
             /* @var ModelSearchExecuteJob $this */
-            $response->items = $this->search();
+            $response->items = $this->executeSearch();
         }
 
         /* @var ModelSearchExecuteJob $this */

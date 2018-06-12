@@ -39,7 +39,7 @@ trait ModelGetRequestJobTrait
      * @return bool|\matrozov\yii2amqp\jobs\rpc\RpcResponseJob|null
      * @throws
      */
-    public static function get($conditions, Connection $connection = null)
+    public static function findOne($conditions, Connection $connection = null)
     {
         $connection = static::connection($connection);
 

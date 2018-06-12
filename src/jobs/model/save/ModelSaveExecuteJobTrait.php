@@ -17,7 +17,7 @@ trait ModelSaveExecuteJobTrait
         $response = new ModelSaveInternalResponseJob();
 
         /* @var ModelSaveExecuteJob $this */
-        $response->success = $this->validate() && $this->save();
+        $response->success = $this->validate() && $this->executeSave();
 
         if ($response->success && ($this instanceof ActiveRecord)) {
             /* @var ActiveRecord $this */

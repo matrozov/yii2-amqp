@@ -7,5 +7,5 @@ namespace matrozov\yii2amqp\jobs\model\get;
  */
 interface ModelGetExecuteJob
 {
-    public static function get($conditions);
+    public static function executeFindOne($conditions);
 }
