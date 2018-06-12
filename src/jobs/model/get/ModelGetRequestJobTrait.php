@@ -1,10 +1,11 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\get;
 
-use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 use Yii;
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
+use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 
 /**
  * Trait ModelGetRequestJobTrait
@@ -16,7 +17,7 @@ trait ModelGetRequestJobTrait
      * @param                 $conditions
      * @param Connection|null $connection
      *
-     * @return bool|\matrozov\yii2amqp\jobs\rpc\RpcResponseJob|null
+     * @return bool|RpcResponseJob|null
      * @throws
      */
     public static function findOne($conditions, Connection $connection = null)

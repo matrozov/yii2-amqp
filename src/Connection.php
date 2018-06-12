@@ -347,6 +347,10 @@ class Connection extends BaseObject implements BootstrapInterface
     public static function instance(Connection $connection = null)
     {
         if ($connection == null) {
+            if (self::$_instance == null) {
+                Yii::$app->amqp;
+            }
+
             $connection = self::$_instance;
         }
 
