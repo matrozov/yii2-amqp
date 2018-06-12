@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model;
+namespace matrozov\yii2amqp\jobs\model\save;
 
 use Yii;
 use yii\base\ErrorException;
@@ -7,10 +7,10 @@ use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 
 /**
- * Trait ModelRequestJobTrait
+ * Trait ModelSaveRequestJobTrait
  * @package matrozov\yii2amqp\traits
  */
-trait ModelRequestJobTrait
+trait ModelSaveRequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -18,7 +18,7 @@ trait ModelRequestJobTrait
      * @return Connection
      * @throws
      */
-    protected function connection(Connection $connection = null)
+    protected static function connection(Connection $connection = null)
     {
         if ($connection == null) {
             $connection = Yii::$app->amqp;
@@ -32,24 +32,24 @@ trait ModelRequestJobTrait
     }
 
     /**
-     * @param Connection|null $connection
+     * @param Connection|null            $connection
      *
-     * @var ModelResponseJob $response
+     * @var ModelSaveInternalResponseJob $response
      *
      * @return bool
      * @throws
      */
     public function save(Connection $connection = null)
     {
-        /* @var ModelRequestJob $this */
+        /* @var ModelGetRequestJob $this */
         if (!$this->validate()) {
             return false;
         }
 
-        $connection = $this->connection($connection);
+        $connection = static::connection($connection);
 
-        /* @var ModelRequestJob $this */
-        $response = $connection->send($this->exchangeName(), $this);
+        /* @var ModelGetRequestJob $this */
+        $response = $connection->send($this);
 
         if (!$response) {
             return false;
@@ -59,12 +59,12 @@ trait ModelRequestJobTrait
             return false;
         }
 
-        if (!($response instanceof ModelResponseJob)) {
-            throw new ErrorException('Response isn\'t ModelResponseJob');
+        if (!($response instanceof ModelSaveInternalResponseJob)) {
+            throw new ErrorException('Response isn\'t ModelSaveInternalResponseJob');
         }
 
-        /* @var ModelResponseJob $response */
-        /* @var ModelRequestJob $this */
+        /* @var ModelSaveInternalResponseJob $response */
+        /* @var ModelGetRequestJob $this */
         $this->addErrors($response->errors);
 
         if ($response->success) {

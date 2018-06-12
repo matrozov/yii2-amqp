@@ -62,7 +62,7 @@ class JsonSerializer implements Serializer
             $result = $this->iterateArray($data->toArray());
 
             $result['scenario'] = $data->getScenario();
-            $result['class'] = get_class($data);
+            $result['class']    = get_class($data);
 
             return $result;
         }

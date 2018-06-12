@@ -41,7 +41,7 @@ trait RpcRequestJobTrait
         $connection = $this->connection($connection);
 
         /* @var RpcRequestJob $this */
-        $response = $connection->send($this->exchangeName(), $this);
+        $response = $connection->send($this);
 
         if (!$response) {
             return false;

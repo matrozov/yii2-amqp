@@ -41,6 +41,6 @@ trait RequestJobTrait
         $connection = $this->connection($connection);
 
         /* @var RequestJob $this */
-        return $connection->send($this->exchangeName(), $this);
+        return $connection->send($this);
     }
 }

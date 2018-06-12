@@ -75,7 +75,7 @@ use matrozov\yii2amqp\serializers\Serializer;
  */
 class Connection extends BaseObject implements BootstrapInterface
 {
-    const ATTEMPT = 'amqp-attempt';
+    const ATTEMPT    = 'amqp-attempt';
 
     /**
      * The connection to the borker could be configured as an array of options
@@ -588,15 +588,19 @@ class Connection extends BaseObject implements BootstrapInterface
     }
 
     /**
-     * @param string     $exchangeName
      * @param RequestJob $job
+     * @param string     $exchangeName
      *
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    public function send($exchangeName, RequestJob $job)
+    public function send(RequestJob $job, $exchangeName = null)
     {
         $this->open();
+
+        if ($exchangeName === null) {
+            $exchangeName = $job::exchangeName();
+        }
 
         if (!isset($this->_exchanges[$exchangeName])) {
             throw new ErrorException('Exchange with name `' . $exchangeName . '` not found!');

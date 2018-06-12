@@ -1,22 +1,22 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model;
+namespace matrozov\yii2amqp\jobs\model\save;
 
 use yii\db\ActiveRecord;
 
 /**
- * Trait ModelExecuteJobTrait
+ * Trait ModelSaveExecuteJobTrait
  * @package matrozov\yii2amqp\traits
  */
-trait ModelExecuteJobTrait
+trait ModelSaveExecuteJobTrait
 {
     /**
-     * @return ModelResponseJob
+     * @return ModelSaveInternalResponseJob
      */
     public function execute()
     {
-        $response = new ModelResponseJob();
+        $response = new ModelSaveInternalResponseJob();
 
-        /* @var ModelExecuteJob $this */
+        /* @var ModelSaveExecuteJob $this */
         $response->success = $this->validate() && $this->save();
 
         if ($response->success && ($this instanceof ActiveRecord)) {
@@ -24,7 +24,7 @@ trait ModelExecuteJobTrait
             $response->primaryKeys = $this->getPrimaryKey(true);
         }
 
-        /* @var ModelExecuteJob $this */
+        /* @var ModelSaveExecuteJob $this */
         $response->errors  = $this->getErrors();
 
         return $response;

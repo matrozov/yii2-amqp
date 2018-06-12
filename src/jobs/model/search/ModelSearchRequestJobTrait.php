@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs\searchModel;
+namespace matrozov\yii2amqp\jobs\model\search;
 
 use Yii;
 use yii\base\ErrorException;
@@ -7,10 +7,10 @@ use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 
 /**
- * Trait SearchModelRequestJobTrait
+ * Trait ModelSearchRequestJobTrait
  * @package matrozov\yii2amqp\traits
  */
-trait SearchModelRequestJobTrait
+trait ModelSearchRequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -18,7 +18,7 @@ trait SearchModelRequestJobTrait
      * @return Connection
      * @throws
      */
-    protected function connection(Connection $connection = null)
+    protected static function connection(Connection $connection = null)
     {
         if ($connection == null) {
             $connection = Yii::$app->amqp;
@@ -32,24 +32,24 @@ trait SearchModelRequestJobTrait
     }
 
     /**
-     * @param Connection|null $connection
+     * @param Connection|null              $connection
      *
-     * @var SearchModelResponseJob $response
+     * @var ModelSearchInternalResponseJob $response
      *
      * @return bool
      * @throws
      */
     public function search(Connection $connection = null)
     {
-        /* @var SearchModelRequestJob $this */
+        /* @var ModelSearchRequestJob $this */
         if (!$this->validate()) {
             return false;
         }
 
-        $connection = $this->connection($connection);
+        $connection = static::connection($connection);
 
-        /* @var SearchModelRequestJob $this */
-        $response = $connection->send($this->exchangeName(), $this);
+        /* @var ModelSearchRequestJob $this */
+        $response = $connection->send($this);
 
         if (!$response) {
             return false;
@@ -59,12 +59,12 @@ trait SearchModelRequestJobTrait
             return false;
         }
 
-        if (!($response instanceof SearchModelResponseJob)) {
-            throw new ErrorException('Response isn\'t SearchModelResponseJob');
+        if (!($response instanceof ModelSearchInternalResponseJob)) {
+            throw new ErrorException('Response isn\'t ModelSearchInternalResponseJob');
         }
 
-        /* @var SearchModelResponseJob $response */
-        /* @var SearchModelRequestJob $this */
+        /* @var ModelSearchInternalResponseJob $response */
+        /* @var ModelSearchRequestJob $this */
         $this->addErrors($response->errors);
 
         return $response->success ? $response->items : false;

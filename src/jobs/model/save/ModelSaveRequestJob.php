@@ -1,13 +1,13 @@
 <?php
-namespace matrozov\yii2amqp\jobs\searchModel;
+namespace matrozov\yii2amqp\jobs\model\save;
 
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 
 /**
- * Interface SearchModelRequestJob
+ * Interface ModelSaveRequestJob
  * @package matrozov\yii2amqp\jobs
  */
-interface SearchModelRequestJob extends RpcRequestJob
+interface ModelSaveRequestJob extends RpcRequestJob
 {
     public function validate();
 

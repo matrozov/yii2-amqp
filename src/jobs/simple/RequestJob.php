@@ -9,5 +9,5 @@ use matrozov\yii2amqp\jobs\BaseJob;
  */
 interface RequestJob extends BaseJob
 {
-    public function exchangeName();
+    public static function exchangeName();
 }

@@ -9,14 +9,14 @@
 и реализующий следующие интерфейсы:
 
 * `ModelRequestJob` - для отправки rpc-model-сообщений.
-* `ModelExecuteJob` - для обработки rpc-model-сообщений.
+* `ModelSaveExecuteJob` - для обработки rpc-model-сообщений.
 
 Нужно отметить, что этот класс, на принимающей стороне, должен реализовывать дополнительный метод `save`, которого нет
 в базовой модели, но, например, есть в ActiveRecord.
 
 Добавляем соответствующие трейты для реализации базовых фукнций.
 ```php
-class MyModelRequestJob extends ActiveRecord implements ModelRequestJob, ModelExecuteJob
+class MyModelRequestJob extends ActiveRecord implements ModelRequestJob, ModelSaveExecuteJob
 {
     use BaseJobTrait;
     use ModelRequestJobTrait;

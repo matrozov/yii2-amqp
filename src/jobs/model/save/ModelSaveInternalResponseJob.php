@@ -1,14 +1,14 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model;
+namespace matrozov\yii2amqp\jobs\model\save;
 
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 use matrozov\yii2amqp\jobs\simple\BaseJobTrait;
 
 /**
- * Interface ModelResponseJob
+ * Interface ModelSaveInternalResponseJob
  * @package matrozov\yii2amqp\jobs
  */
-class ModelResponseJob implements RpcResponseJob
+class ModelSaveInternalResponseJob implements RpcResponseJob
 {
     use BaseJobTrait;
 
