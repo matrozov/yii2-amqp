@@ -663,6 +663,8 @@ class Connection extends BaseObject implements BootstrapInterface
 
             throw $e;
         }
+
+        $consumer->acknowledge($message);
     }
 
     /**
