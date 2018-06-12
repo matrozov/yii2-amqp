@@ -26,6 +26,11 @@
         "psr-4": {
             "matrozov\\yii2amqp\\": "src",
             "matrozov\\yii2amqp\\jobs\\": "src/jobs",
+            "matrozov\\yii2amqp\\jobs\\simple": "src/jobs/simple",
+            "matrozov\\yii2amqp\\jobs\\rpc": "src/jobs/rpc",
+            "matrozov\\yii2amqp\\jobs\\model\\get": "src/jobs/model/get",
+            "matrozov\\yii2amqp\\jobs\\model\\save": "src/jobs/model/save",
+            "matrozov\\yii2amqp\\jobs\\model\\search": "src/jobs/model/search",
             "matrozov\\yii2amqp\\serializers\\": "src/serializers"
         }
     }
