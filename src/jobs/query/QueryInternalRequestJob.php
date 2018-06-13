@@ -32,15 +32,12 @@ class QueryInternalRequestJob implements RpcRequestJob, RpcExecuteJob
      */
     public function execute()
     {
-        /* @var Model $className */
-        $className = $this->className;
+        /* @var Model $model */
+        $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className], $this->conditions));
 
-        if (!($className instanceof Model)) {
+        if (!($model instanceof Model)) {
             throw new ErrorException('Class must be instance of Model!');
         }
-
-        /* @var Model $model */
-        $model = Yii::createObject(ArrayHelper::merge(['class' => $className], $this->conditions));
 
         if (!method_exists($model, $this->method)) {
             throw new ErrorException('Object must implement required method!');
