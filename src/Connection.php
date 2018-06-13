@@ -1,8 +1,6 @@
 <?php
 namespace matrozov\yii2amqp;
 
-use matrozov\yii2amqp\jobs\rpc\RpcException;
-use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
 use Yii;
 use yii\base\Application as BaseApp;
 use yii\console\Application as ConsoleApp;
@@ -31,6 +29,7 @@ use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
+use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
 
 /**
  * Class Connection

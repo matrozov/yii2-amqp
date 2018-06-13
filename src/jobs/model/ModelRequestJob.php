@@ -1,16 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model\save;
+namespace matrozov\yii2amqp\jobs\model;
 
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 
 /**
- * Interface ModelSaveRequestJob
- * @package matrozov\yii2amqp\jobs\model\save
+ * Interface ModelRequestJob
+ * @package matrozov\yii2amqp\jobs\model
  */
-interface ModelSaveRequestJob extends RpcRequestJob
+interface ModelRequestJob extends RpcRequestJob
 {
-    public function toArray();
     public function validate();
     public function clearErrors($attribute = null);
     public function addErrors(array $items);

@@ -29,10 +29,7 @@
             "matrozov\\yii2amqp\\jobs\\simple\\": "src/jobs/simple",
             "matrozov\\yii2amqp\\jobs\\rpc\\": "src/jobs/rpc",
             "matrozov\\yii2amqp\\jobs\\model\\": "src/jobs/model",
-            "matrozov\\yii2amqp\\jobs\\model\\save\\": "src/jobs/model/save",
-            "matrozov\\yii2amqp\\jobs\\model\\findOne\\": "src/jobs/model/findOne",
-            "matrozov\\yii2amqp\\jobs\\model\\findAll\\": "src/jobs/model/findAll",
-            "matrozov\\yii2amqp\\jobs\\model\\deleteAll\\": "src/jobs/model/deleteAll",
+            "matrozov\\yii2amqp\\jobs\\query\\": "src/jobs/query",
             "matrozov\\yii2amqp\\serializers\\": "src/serializers"
         }
     }

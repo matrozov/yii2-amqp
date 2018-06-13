@@ -1,13 +1,10 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model\save;
-use yii\base\ErrorException;
-use yii\db\ActiveRecord;
+namespace matrozov\yii2amqp\jobs\model;
 
-/**
- * Trait ModelSaveExecuteJobActiveRecordTrait
- * @package matrozov\yii2amqp\jobs\model\save
- */
-trait ModelSaveExecuteJobActiveRecordTrait
+use yii\db\ActiveRecord;
+use yii\base\ErrorException;
+
+trait ModelExecuteJobActiveRecordTrait
 {
     /**
      * @return bool
