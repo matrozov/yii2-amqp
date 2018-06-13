@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs\modelOld\query;
+namespace matrozov\yii2amqp\jobs\query;
 
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;

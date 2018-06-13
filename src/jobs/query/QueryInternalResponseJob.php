@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs\modelOld\query;
+namespace matrozov\yii2amqp\jobs\query;
 
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 

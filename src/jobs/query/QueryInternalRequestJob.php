@@ -1,13 +1,12 @@
 <?php
 namespace matrozov\yii2amqp\jobs\query;
 
-use matrozov\yii2amqp\jobs\modelOld\query\QueryInternalResponseJob;
+use Yii;
+use yii\base\Model;
+use yii\base\ErrorException;
+use yii\helpers\ArrayHelper;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
-use Yii;
-use yii\base\ErrorException;
-use yii\base\Model;
-use yii\helpers\ArrayHelper;
 
 /**
  * Class QueryInternalRequestJob
