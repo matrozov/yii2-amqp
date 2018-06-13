@@ -1,36 +1,40 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\save;
 
-use Yii;
-use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
+use yii\base\ErrorException;
 
 /**
  * Trait ModelSaveRequestJobTrait
- * @package matrozov\yii2amqp\traits
+ * @package matrozov\yii2amqp\jobs\model\save
  */
 trait ModelSaveRequestJobTrait
 {
     /**
-     * @param Connection|null            $connection
-     *
-     * @var ModelSaveInternalResponseJob $response
+     * @param null $connection
      *
      * @return bool
-     * @throws
+     * @throws ErrorException
      */
-    public function save(Connection $connection = null)
+    public function save($connection = null)
     {
-        /* @var ModelGetRequestJob $this */
+        /* @var ModelSaveRequestJob $this */
         if (!$this->validate()) {
             return false;
         }
 
         $connection = Connection::instance($connection);
 
-        /* @var ModelGetRequestJob $this */
-        $response = $connection->send($this);
+        /* @var ModelSaveRequestJob $className */
+        $className = static::class;
+
+        $request = new ModelSaveInternalRequestJob();
+        $request->className  = $className;
+        /* @var ModelSaveRequestJob $this */
+        $request->attributes = $this->toArray();
+
+        $response = $connection->send($request, $className::exchangeName());
 
         if (!$response) {
             return false;
@@ -41,11 +45,11 @@ trait ModelSaveRequestJobTrait
         }
 
         if (!($response instanceof ModelSaveInternalResponseJob)) {
-            throw new ErrorException('Response isn\'t ModelSaveInternalResponseJob');
+            throw new ErrorException('Response should be ModelSaveInternalResponseJob!');
         }
 
         /* @var ModelSaveInternalResponseJob $response */
-        /* @var ModelGetRequestJob $this */
+        /* @var ModelSaveRequestJob $this */
         $this->addErrors($response->errors);
 
         if ($response->success) {

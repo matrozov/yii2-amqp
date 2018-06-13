@@ -1,8 +1,6 @@
 <?php
 namespace matrozov\yii2amqp\jobs\rpc;
 
-use Yii;
-use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
 
 /**

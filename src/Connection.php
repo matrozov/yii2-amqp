@@ -1,6 +1,8 @@
 <?php
 namespace matrozov\yii2amqp;
 
+use matrozov\yii2amqp\jobs\rpc\RpcException;
+use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
 use Yii;
 use yii\base\Application as BaseApp;
 use yii\console\Application as ConsoleApp;
@@ -75,7 +77,7 @@ use matrozov\yii2amqp\serializers\Serializer;
  */
 class Connection extends BaseObject implements BootstrapInterface
 {
-    const ATTEMPT    = 'amqp-attempt';
+    const PARAM_ATTEMPT = 'amqp-attempt';
 
     /**
      * The connection to the borker could be configured as an array of options
@@ -348,7 +350,7 @@ class Connection extends BaseObject implements BootstrapInterface
     {
         if ($connection == null) {
             if (self::$_instance == null) {
-                Yii::$app->amqp;
+                Yii::$app->get('amqp');
             }
 
             $connection = self::$_instance;
@@ -531,10 +533,10 @@ class Connection extends BaseObject implements BootstrapInterface
     {
         $message = $this->_context->createMessage();
 
-        $message->setDeliveryMode($job->deliveryMode());
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
-        $message->setProperty(self::ATTEMPT, 1);
+        $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
+        $message->setProperty(self::PARAM_ATTEMPT, 1);
 
         $message->setBody($this->serializer->serialize($job));
 
@@ -593,6 +595,10 @@ class Connection extends BaseObject implements BootstrapInterface
 
             if ($responseJob instanceof RpcFalseResponseJob) {
                 return false;
+            }
+
+            if ($responseJob instanceof RpcExceptionResponseJob) {
+                throw new ErrorException($responseJob->message, $responseJob->code);
             }
 
             return $responseJob;
@@ -689,7 +695,9 @@ class Connection extends BaseObject implements BootstrapInterface
                 $consumer->acknowledge($message);
             }
             else {
-                $responseJob = new RpcFalseResponseJob();
+                $responseJob = new RpcExceptionResponseJob();
+                $responseJob->code    = $e->getCode();
+                $responseJob->message = $e->getMessage();
 
                 $this->replyRpcMessage($message, $responseJob);
 
@@ -732,7 +740,6 @@ class Connection extends BaseObject implements BootstrapInterface
      * @param AmqpMessage  $message
      * @param AmqpConsumer $consumer
      *
-     * @return bool
      * @throws
      */
     protected function handleMessage(AmqpMessage $message, AmqpConsumer $consumer)
@@ -786,14 +793,15 @@ class Connection extends BaseObject implements BootstrapInterface
     }
 
     /**
-     * @param AmqpMessage $message
+     * @param AmqpMessage  $message
+     * @param AmqpConsumer $consumer
      *
      * @return bool
      * @throws
      */
     protected function redelivery(AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $attempt = $message->getProperty(self::ATTEMPT, 1);
+        $attempt = $message->getProperty(self::PARAM_ATTEMPT, 1);
 
         if ($attempt >= $this->maxAttempts) {
             return false;
@@ -802,7 +810,7 @@ class Connection extends BaseObject implements BootstrapInterface
         $newMessage = $this->_context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
         $newMessage->setDeliveryMode($message->getDeliveryMode());
 
-        $newMessage->setProperty(self::ATTEMPT, ++$attempt);
+        $newMessage->setProperty(self::PARAM_ATTEMPT, ++$attempt);
 
         $produces = $this->_context->createProducer();
         $produces->send($consumer->getQueue(), $newMessage);

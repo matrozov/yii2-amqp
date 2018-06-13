@@ -7,5 +7,5 @@ namespace matrozov\yii2amqp\jobs;
  */
 interface BaseJob
 {
-    public static function deliveryMode();
+
 }

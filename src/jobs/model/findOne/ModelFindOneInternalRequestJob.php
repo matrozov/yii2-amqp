@@ -1,40 +1,30 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model\get;
+namespace matrozov\yii2amqp\jobs\model\findOne;
 
+use matrozov\yii2amqp\jobs\model\ModelStubExchangeNameTrait;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
-use matrozov\yii2amqp\jobs\simple\BaseJobTrait;
 use yii\base\ErrorException;
 
 /**
- * Class ModelGetInternalRequestJob
- * @package matrozov\yii2amqp\jobs\model\get
+ * Class ModelFindOneInternalRequestJob
+ * @package matrozov\yii2amqp\jobs\model\findOne
  *
  * @property string $className
  * @property        $conditions
  */
-class ModelGetInternalRequestJob implements RpcRequestJob, RpcExecuteJob
+class ModelFindOneInternalRequestJob implements RpcRequestJob, RpcExecuteJob
 {
-    use BaseJobTrait;
+    use ModelStubExchangeNameTrait;
 
     public $className;
     public $conditions;
 
-    public static function exchangeName()
-    {
-        return '';
-    }
-
-    /**
-     * @return bool|ModelGetExecuteJob
-     * @throws
-     */
     public function execute()
     {
-        /* @var ModelGetExecuteJob $modelClass */
+        /* @var ModelFindOneExecuteJob $modelClass */
         $modelClass = $this->className;
 
-        /* @var ModelGetExecuteJob $model */
         $model = $modelClass::executeFindOne($this->conditions);
 
         if (!$model) {
@@ -45,6 +35,9 @@ class ModelGetInternalRequestJob implements RpcRequestJob, RpcExecuteJob
             throw new ErrorException('Model isn\'t "' . $this->className . '"');
         }
 
-        return $model;
+        $response = new ModelFindOneInternalResponseJob();
+        $response->model = $model;
+
+        return $response;
     }
 }
