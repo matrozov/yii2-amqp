@@ -1,6 +1,7 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\findAll;
 
+use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 
 /**
@@ -9,5 +10,5 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
  */
 interface ModelFindAllRequestJob extends RpcRequestJob
 {
-    public static function findAll($conditions, $connection = null);
+    public static function findAll($conditions, Connection $connection = null);
 }

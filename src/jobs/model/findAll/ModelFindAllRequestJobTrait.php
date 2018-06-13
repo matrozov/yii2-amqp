@@ -11,13 +11,13 @@ use yii\base\ErrorException;
 trait ModelFindAllRequestJobTrait
 {
     /**
-     * @param      $conditions
-     * @param null $connection
+     * @param                 $conditions
+     * @param Connection|null $connection
      *
      * @return bool
      * @throws
      */
-    public static function findAll($conditions, $connection = null)
+    public static function findAll($conditions, Connection $connection = null)
     {
         $connection = Connection::instance($connection);
 

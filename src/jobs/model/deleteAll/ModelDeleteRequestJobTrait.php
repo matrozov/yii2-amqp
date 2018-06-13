@@ -11,25 +11,25 @@ use matrozov\yii2amqp\Connection;
 trait ModelDeleteRequestJobTrait
 {
     /**
-     * @param null $connection
+     * @param Connection|null $connection
      *
      * @return bool
      * @throws
      */
-    public function delete($connection = null)
+    public function delete(Connection $connection = null)
     {
         /* @var ModelDeleteRequestJob $this */
         return $this->deleteAll($this->primaryKeys(), $connection) > 0;
     }
 
     /**
-     * @param      $conditions
-     * @param null $connection
+     * @param                 $conditions
+     * @param Connection|null $connection
      *
      * @return integer
      * @throws
      */
-    public function deleteAll($conditions, $connection = null)
+    public function deleteAll($conditions, Connection $connection = null)
     {
         $connection = Connection::instance($connection);
 

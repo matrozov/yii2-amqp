@@ -1,6 +1,7 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\deleteAll;
 
+use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 
 /**
@@ -14,6 +15,6 @@ interface ModelDeleteRequestJob extends RpcRequestJob
      */
     public function primaryKeys();
 
-    public function delete($connection = null);
-    public function deleteAll($conditions, $connection = null);
+    public function delete(Connection $connection = null);
+    public function deleteAll($conditions, Connection $connection = null);
 }

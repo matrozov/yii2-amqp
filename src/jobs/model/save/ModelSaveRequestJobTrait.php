@@ -12,12 +12,12 @@ use yii\base\ErrorException;
 trait ModelSaveRequestJobTrait
 {
     /**
-     * @param null $connection
+     * @param Connection|null $connection
      *
      * @return bool
      * @throws ErrorException
      */
-    public function save($connection = null)
+    public function save(Connection $connection = null)
     {
         /* @var ModelSaveRequestJob $this */
         if (!$this->validate()) {

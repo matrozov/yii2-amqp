@@ -1,6 +1,7 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model\save;
 
+use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 
 /**
@@ -14,5 +15,5 @@ interface ModelSaveRequestJob extends RpcRequestJob
     public function clearErrors($attribute = null);
     public function addErrors(array $items);
 
-    public function save($connection = null);
+    public function save(Connection $connection = null);
 }
