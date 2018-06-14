@@ -79,7 +79,7 @@ class Connection extends BaseObject implements BootstrapInterface
     const PARAM_ATTEMPT = 'amqp-attempt';
 
     /**
-     * The connection to the borker could be configured as an array of options
+     * The connection to the worker could be configured as an array of options
      * or as a DSN string like amqp:, amqps:, amqps://user:pass@localhost:1000/vhost.
      *
      * @var string
