@@ -22,11 +22,8 @@ trait ModelExecuteJobTrait
         $response->success = $this->validate() && $this->executeSave();
         /* @var ModelExecuteJob $this */
         $response->errors  = $this->getErrors();
-
-        if ($response->success && ($this instanceof ActiveRecord)) {
-            /* @var ActiveRecord $this */
-            $response->primaryKeys = $this->getPrimaryKey(true);
-        }
+        /* @var ModelExecuteJob $this */
+        $response->primaryKeys = $this->getPrimaryKey(true);
 
         return $response;
     }
