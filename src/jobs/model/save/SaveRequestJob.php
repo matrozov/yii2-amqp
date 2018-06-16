@@ -25,7 +25,7 @@ abstract class SaveRequestJob extends ModelRequestJob
         }
 
         if (is_array($response->result)) {
-            $this->setAttributes($response->result);
+            $this->setAttributes($response->result, false);
         }
 
         return true;
