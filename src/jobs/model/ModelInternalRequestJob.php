@@ -14,12 +14,14 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
  *
  * @property string $className
  * @property string $method
+ * @property string $scenario
  * @property array  $data
  */
 class ModelInternalRequestJob implements RpcRequestJob, RpcExecuteJob
 {
     public $className;
     public $method;
+    public $scenario;
     public $data;
 
     public static function exchangeName()
@@ -33,7 +35,7 @@ class ModelInternalRequestJob implements RpcRequestJob, RpcExecuteJob
     public function execute()
     {
         /* @var Model $model */
-        $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className], $this->data));
+        $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className, 'scenario' => $this->scenario], $this->data));
 
         if (!($model instanceof Model)) {
             throw new ErrorException('Class must be instance of Model!');

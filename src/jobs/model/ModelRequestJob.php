@@ -30,6 +30,7 @@ abstract class ModelRequestJob extends Model implements RpcRequestJob
         $request = new ModelInternalRequestJob();
         $request->className = static::class;
         $request->method    = $method;
+        $request->scenario  = $this->scenario;
         $request->data      = $this->toArray();
 
         $response = $connection->send($request, $this::exchangeName());
