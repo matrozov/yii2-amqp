@@ -1,14 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\jobs\query;
+namespace matrozov\yii2amqp\jobs\model\deleteAll;
 
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\model\ModelRequestJob;
 
 /**
  * Class DeleteAllRequestJob
- * @package matrozov\yii2amqp\jobs\model\query
+ * @package matrozov\yii2amqp\jobs\model\model
  */
-abstract class DeleteAllRequestJob extends QueryRequestJob
+abstract class DeleteAllRequestJob extends ModelRequestJob
 {
     /**
      * @param Connection|null $connection
@@ -18,7 +19,7 @@ abstract class DeleteAllRequestJob extends QueryRequestJob
      */
     public function deleteAll(Connection $connection = null)
     {
-        $response = $this->query('deleteAll', $connection);
+        $response = $this->sendRequest('executeDeleteAll', $connection);
 
         if (!$response) {
             return false;

@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs\model;
+namespace matrozov\yii2amqp\jobs\model\save;
 
 use yii\db\ActiveRecord;
 use yii\base\ErrorException;
@@ -17,6 +17,11 @@ trait ModelExecuteJobActiveRecordTrait
         }
 
         /* @var ActiveRecord $this */
-        return $this->save();
+        if (!$this->save()) {
+            return false;
+        }
+
+        /* @var ActiveRecord $this */
+        return $this->getPrimaryKey(true);
     }
 }

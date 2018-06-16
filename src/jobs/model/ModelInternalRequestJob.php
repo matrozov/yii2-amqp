@@ -1,5 +1,5 @@
 <?php
-namespace matrozov\yii2amqp\jobs\query;
+namespace matrozov\yii2amqp\jobs\model;
 
 use Yii;
 use yii\base\Model;
@@ -9,18 +9,18 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 
 /**
- * Class QueryInternalRequestJob
- * @package matrozov\yii2amqp\jobs\query
+ * Class ModelInternalRequestJob
+ * @package matrozov\yii2amqp\jobs\model
  *
  * @property string $className
  * @property string $method
- * @property array  $conditions
+ * @property array  $data
  */
-class QueryInternalRequestJob implements RpcRequestJob, RpcExecuteJob
+class ModelInternalRequestJob implements RpcRequestJob, RpcExecuteJob
 {
     public $className;
     public $method;
-    public $conditions;
+    public $data;
 
     public static function exchangeName()
     {
@@ -33,7 +33,7 @@ class QueryInternalRequestJob implements RpcRequestJob, RpcExecuteJob
     public function execute()
     {
         /* @var Model $model */
-        $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className], $this->conditions));
+        $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className], $this->data));
 
         if (!($model instanceof Model)) {
             throw new ErrorException('Class must be instance of Model!');
@@ -43,7 +43,7 @@ class QueryInternalRequestJob implements RpcRequestJob, RpcExecuteJob
             throw new ErrorException('Object must implement required method!');
         }
 
-        $response = new QueryInternalResponseJob();
+        $response = new ModelInternalResponseJob();
 
         $response->success = $model->validate();
 

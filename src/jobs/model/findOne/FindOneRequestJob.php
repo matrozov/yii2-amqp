@@ -1,14 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\jobs\query;
+namespace matrozov\yii2amqp\jobs\model\findOne;
 
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\model\ModelRequestJob;
 
 /**
  * Class FindOneRequestJob
- * @package matrozov\yii2amqp\jobs\model\query
+ * @package matrozov\yii2amqp\jobs\model\model
  */
-abstract class FindOneRequestJob extends QueryRequestJob
+abstract class FindOneRequestJob extends ModelRequestJob
 {
     /**
      * @param Connection|null $connection
@@ -18,7 +19,7 @@ abstract class FindOneRequestJob extends QueryRequestJob
      */
     public function findOne(Connection $connection = null)
     {
-        $response = $this->query('findOne', $connection);
+        $response = $this->sendRequest('executeFindOne', $connection);
 
         if (!$response) {
             return false;

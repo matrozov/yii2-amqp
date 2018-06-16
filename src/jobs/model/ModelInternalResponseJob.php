@@ -1,17 +1,17 @@
 <?php
-namespace matrozov\yii2amqp\jobs\query;
+namespace matrozov\yii2amqp\jobs\model;
 
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 
 /**
- * Class QueryInternalResponseJob
- * @package matrozov\yii2amqp\jobs\model\query
+ * Class ModelInternalResponseJob
+ * @package matrozov\yii2amqp\jobs\model\model
  *
  * @property bool  $success
  * @property       $result
  * @property array $errors
  */
-class QueryInternalResponseJob implements RpcResponseJob
+class ModelInternalResponseJob implements RpcResponseJob
 {
     public $success = false;
     public $result  = null;

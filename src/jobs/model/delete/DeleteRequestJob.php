@@ -1,14 +1,15 @@
 <?php
-namespace matrozov\yii2amqp\jobs\query;
+namespace matrozov\yii2amqp\jobs\model\delete;
 
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\model\ModelRequestJob;
 
 /**
  * Class DeleteRequestJob
- * @package matrozov\yii2amqp\jobs\model\query
+ * @package matrozov\yii2amqp\jobs\model\model
  */
-abstract class DeleteRequestJob extends QueryRequestJob
+abstract class DeleteRequestJob extends ModelRequestJob
 {
     /**
      * @param Connection|null $connection
@@ -18,7 +19,7 @@ abstract class DeleteRequestJob extends QueryRequestJob
      */
     public function delete(Connection $connection = null)
     {
-        $response = $this->query('delete', $connection);
+        $response = $this->sendRequest('executeDelete', $connection);
 
         if (!$response) {
             return false;
