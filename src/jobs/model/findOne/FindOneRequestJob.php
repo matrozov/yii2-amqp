@@ -21,7 +21,7 @@ abstract class FindOneRequestJob extends ModelRequestJob
     {
         $response = $this->sendRequest('executeFindOne', $connection);
 
-        if (!$response) {
+        if ($response === false) {
             return false;
         }
 

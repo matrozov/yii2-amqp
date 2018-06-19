@@ -597,7 +597,7 @@ class Connection extends BaseObject implements BootstrapInterface
             }
 
             if ($responseJob instanceof RpcExceptionResponseJob) {
-                throw new ErrorException($responseJob->message, $responseJob->code);
+                throw $responseJob->exception();
             }
 
             return $responseJob;
@@ -695,8 +695,7 @@ class Connection extends BaseObject implements BootstrapInterface
             }
             else {
                 $responseJob = new RpcExceptionResponseJob();
-                $responseJob->code    = $e->getCode();
-                $responseJob->message = $e->getMessage();
+                $responseJob->fillByException($e);
 
                 $this->replyRpcMessage($message, $responseJob);
 

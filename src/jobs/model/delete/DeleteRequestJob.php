@@ -21,7 +21,7 @@ abstract class DeleteRequestJob extends ModelRequestJob
     {
         $response = $this->sendRequest('executeDelete', $connection);
 
-        if (!$response) {
+        if ($response === false) {
             return false;
         }
 

@@ -4,6 +4,10 @@ namespace matrozov\yii2amqp\jobs\model\save;
 use yii\db\ActiveRecord;
 use yii\base\ErrorException;
 
+/**
+ * Trait ModelExecuteJobActiveRecordTrait
+ * @package matrozov\yii2amqp\jobs\model\save
+ */
 trait ModelExecuteJobActiveRecordTrait
 {
     /**
