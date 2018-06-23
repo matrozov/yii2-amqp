@@ -2,11 +2,13 @@
 namespace matrozov\yii2amqp;
 
 use Yii;
+use matrozov\yii2amqp\events\ExecuteEvent;
+use matrozov\yii2amqp\events\SendEvent;
+use yii\base\Component;
 use yii\base\Application as BaseApp;
 use yii\console\Application as ConsoleApp;
 use yii\di\Instance;
 use yii\base\Event;
-use yii\base\BaseObject;
 use yii\base\InvalidConfigException;
 use yii\base\BootstrapInterface;
 use yii\base\ErrorException;
@@ -74,9 +76,14 @@ use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
  *
  * @property Serializer     $serializer
  */
-class Connection extends BaseObject implements BootstrapInterface
+class Connection extends Component implements BootstrapInterface
 {
     const PARAM_ATTEMPT = 'amqp-attempt';
+
+    const EVENT_BEFORE_SEND    = 'beforeSend';
+    const EVENT_AFTER_SEND     = 'afterSend';
+    const EVENT_BEFORE_EXECUTE = 'beforeExecute';
+    const EVENT_AFTER_EXECUTE  = 'afterExecute';
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -228,7 +235,7 @@ class Connection extends BaseObject implements BootstrapInterface
     /**
      * Max attempts to requeue message
      *
-     * @var int $maxAttempts
+     * @var int
      */
     public $maxAttempts = 1;
 
@@ -236,28 +243,28 @@ class Connection extends BaseObject implements BootstrapInterface
     /**
      * Queue config list
      *
-     * @var []array $queues
+     * @var []array
      */
     public $queues = [];
 
     /**
      * Exchange config list
      *
-     * @var []array $exchanges
+     * @var []array
      */
     public $exchanges = [];
 
     /**
      * Binding config list
      *
-     * @var []array $bindings
+     * @var []array
      */
     public $bindings = [];
 
     /**
      * Default Queue config
      *
-     * @var []array $defaultQueue
+     * @var []array
      */
     public $defaultQueue = [
         'flags' => AmqpQueue::FLAG_DURABLE,
@@ -266,7 +273,7 @@ class Connection extends BaseObject implements BootstrapInterface
     /**
      * Default Exchange config
      *
-     * @var []array $defaultExchange
+     * @var []array
      */
     public $defaultExchange = [
         'type'  => AmqpTopic::TYPE_DIRECT,
@@ -276,7 +283,7 @@ class Connection extends BaseObject implements BootstrapInterface
     /**
      * Default Bind config
      *
-     * @var []array $defaultBind
+     * @var []array
      */
     public $defaultBind = [
         'routingKey' => null,
@@ -287,40 +294,39 @@ class Connection extends BaseObject implements BootstrapInterface
     /**
      * Default wait rpc response timeout
      *
-     * @var int $rpcTimeout
+     * @var int
      */
     public $rpcTimeout = 5000;
 
     /**
-     * @var Serializer $serializer
+     * @var Serializer
      */
     public $serializer = JsonSerializer::class;
 
     /**
-     * @var AmqpContext $_context
+     * @var AmqpContext
      */
     protected $_context;
 
     /**
      * AmqpQueue list
      *
-     * @var []AmqpQueue $_queues
+     * @var []AmqpQueue
      */
     protected $_queues = [];
 
     /**
      * AmqpTopic list
      *
-     * @var []AmqpTopic $_exchanges
+     * @var []AmqpTopic
      */
     protected $_exchanges = [];
 
 
     /**
-     * @var Connection $_instance
+     * @var Connection
      */
     protected static $_instance;
-
 
     /**
      * @inheritdoc
@@ -566,8 +572,12 @@ class Connection extends BaseObject implements BootstrapInterface
         $message->setReplyTo($queue->getQueueName());
         $message->setCorrelationId(uniqid('', true));
 
+        $this->beforeSend($target, $job, $message);
+
         $producer = $this->_context->createProducer();
         $producer->send($target, $message);
+
+        $this->afterSend($target, $job, $message);
 
         $consumer = $this->_context->createConsumer($queue);
 
@@ -617,8 +627,12 @@ class Connection extends BaseObject implements BootstrapInterface
     {
         $message = $this->createMessage($job);
 
+        $this->beforeSend($target, $job, $message);
+
         $producer = $this->_context->createProducer();
         $producer->send($target, $message);
+
+        $this->afterSend($target, $job, $message);
 
         return true;
     }
@@ -677,7 +691,11 @@ class Connection extends BaseObject implements BootstrapInterface
     protected function handleRpcMessage(RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         try {
+            $this->beforeExecute($job, null, $message, $consumer);
+
             $responseJob = $job->execute();
+
+            $this->afterExecute($job, $responseJob, $message, $consumer);
 
             if (!$responseJob) {
                 $responseJob = new RpcFalseResponseJob();
@@ -718,7 +736,11 @@ class Connection extends BaseObject implements BootstrapInterface
     protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         try {
+            $this->beforeExecute($job, null, $message, $consumer);
+
             $job->execute();
+
+            $this->afterExecute($job, null, $message, $consumer);
         }
         catch (\Exception $e) {
             if ($this->redelivery($message, $consumer)) {
@@ -814,5 +836,51 @@ class Connection extends BaseObject implements BootstrapInterface
         $produces->send($consumer->getQueue(), $newMessage);
 
         return true;
+    }
+
+    public function beforeSend(PsrDestination $target, BaseJob $job, AmqpMessage $message)
+    {
+        $event = new SendEvent([
+            'target'     => $target,
+            'requestJob' => $job,
+            'message'    => $message,
+        ]);
+
+        $this->trigger(static::EVENT_BEFORE_SEND, $event);
+    }
+
+    public function afterSend(PsrDestination $target, BaseJob $job, AmqpMessage $message)
+    {
+        $event = new SendEvent([
+            'target'     => $target,
+            'requestJob' => $job,
+            'message'    => $message,
+        ]);
+
+        $this->trigger(static::EVENT_AFTER_SEND, $event);
+    }
+
+    public function beforeExecute(ExecuteJob $requestJob, RpcResponseJob $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        $event = new ExecuteEvent([
+            'requestJob'  => $requestJob,
+            'responseJob' => $responseJob,
+            'message'     => $message,
+            'consumer'    => $consumer,
+        ]);
+
+        $this->trigger(static::EVENT_BEFORE_EXECUTE, $event);
+    }
+
+    public function afterExecute(ExecuteJob $requestJob, RpcResponseJob $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        $event = new ExecuteEvent([
+            'requestJob'  => $requestJob,
+            'responseJob' => $responseJob,
+            'message'     => $message,
+            'consumer'    => $consumer,
+        ]);
+
+        $this->trigger(static::EVENT_AFTER_EXECUTE, $event);
     }
 }

@@ -24,13 +24,7 @@
     },
     "autoload": {
         "psr-4": {
-            "matrozov\\yii2amqp\\": "src",
-            "matrozov\\yii2amqp\\jobs\\": "src/jobs",
-            "matrozov\\yii2amqp\\jobs\\simple\\": "src/jobs/simple",
-            "matrozov\\yii2amqp\\jobs\\rpc\\": "src/jobs/rpc",
-            "matrozov\\yii2amqp\\jobs\\model\\": "src/jobs/model",
-            "matrozov\\yii2amqp\\jobs\\query\\": "src/jobs/query",
-            "matrozov\\yii2amqp\\serializers\\": "src/serializers"
+            "matrozov\\yii2amqp\\": "src"
         }
     }
 }
