@@ -860,7 +860,7 @@ class Connection extends Component implements BootstrapInterface
         $this->trigger(static::EVENT_AFTER_SEND, $event);
     }
 
-    public function beforeExecute(ExecuteJob $requestJob, RpcResponseJob $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
+    public function beforeExecute(ExecuteJob $requestJob, $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
     {
         $event = new ExecuteEvent([
             'requestJob'  => $requestJob,
@@ -872,7 +872,7 @@ class Connection extends Component implements BootstrapInterface
         $this->trigger(static::EVENT_BEFORE_EXECUTE, $event);
     }
 
-    public function afterExecute(ExecuteJob $requestJob, RpcResponseJob $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
+    public function afterExecute(ExecuteJob $requestJob, $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
     {
         $event = new ExecuteEvent([
             'requestJob'  => $requestJob,
