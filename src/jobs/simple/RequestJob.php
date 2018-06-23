@@ -9,5 +9,8 @@ use matrozov\yii2amqp\jobs\BaseJob;
  */
 interface RequestJob extends BaseJob
 {
+    const EVENT_BEFORE_SEND = 'beforeSend';
+    const EVENT_AFTER_SEND  = 'afterSend';
+
     public static function exchangeName();
 }

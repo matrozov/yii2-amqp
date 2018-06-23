@@ -2,8 +2,6 @@
 namespace matrozov\yii2amqp;
 
 use Yii;
-use matrozov\yii2amqp\events\ExecuteEvent;
-use matrozov\yii2amqp\events\SendEvent;
 use yii\base\Component;
 use yii\base\Application as BaseApp;
 use yii\console\Application as ConsoleApp;
@@ -29,9 +27,12 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
+use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
+use matrozov\yii2amqp\jobs\simple\EventJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
-use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
+use matrozov\yii2amqp\events\ExecuteEvent;
+use matrozov\yii2amqp\events\SendEvent;
 
 /**
  * Class Connection
@@ -838,6 +839,11 @@ class Connection extends Component implements BootstrapInterface
         return true;
     }
 
+    /**
+     * @param PsrDestination $target
+     * @param BaseJob        $job
+     * @param AmqpMessage    $message
+     */
     public function beforeSend(PsrDestination $target, BaseJob $job, AmqpMessage $message)
     {
         $event = new SendEvent([
@@ -847,8 +853,22 @@ class Connection extends Component implements BootstrapInterface
         ]);
 
         $this->trigger(static::EVENT_BEFORE_SEND, $event);
+
+        if ($job instanceof Component) {
+            $event = new EventJob([
+                'job' => $job,
+            ]);
+
+            /* @var Component $job */
+            $job->trigger(RequestJob::EVENT_BEFORE_SEND, $event);
+        }
     }
 
+    /**
+     * @param PsrDestination $target
+     * @param BaseJob        $job
+     * @param AmqpMessage    $message
+     */
     public function afterSend(PsrDestination $target, BaseJob $job, AmqpMessage $message)
     {
         $event = new SendEvent([
@@ -858,8 +878,23 @@ class Connection extends Component implements BootstrapInterface
         ]);
 
         $this->trigger(static::EVENT_AFTER_SEND, $event);
+
+        if ($job instanceof Component) {
+            $event = new EventJob([
+                'job' => $job,
+            ]);
+
+            /* @var Component $job */
+            $job->trigger(RequestJob::EVENT_AFTER_SEND, $event);
+        }
     }
 
+    /**
+     * @param ExecuteJob          $requestJob
+     * @param RpcResponseJob|null $responseJob
+     * @param AmqpMessage         $message
+     * @param AmqpConsumer        $consumer
+     */
     public function beforeExecute(ExecuteJob $requestJob, $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
     {
         $event = new ExecuteEvent([
@@ -870,8 +905,23 @@ class Connection extends Component implements BootstrapInterface
         ]);
 
         $this->trigger(static::EVENT_BEFORE_EXECUTE, $event);
+
+        if ($requestJob instanceof Component) {
+            $event = new EventJob([
+                'job' => $requestJob,
+            ]);
+
+            /* @var Component $requestJob */
+            $requestJob->trigger(ExecuteJob::EVENT_BEFORE_EXECUTE, $event);
+        }
     }
 
+    /**
+     * @param ExecuteJob          $requestJob
+     * @param RpcResponseJob|null $responseJob
+     * @param AmqpMessage         $message
+     * @param AmqpConsumer        $consumer
+     */
     public function afterExecute(ExecuteJob $requestJob, $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
     {
         $event = new ExecuteEvent([
@@ -882,5 +932,14 @@ class Connection extends Component implements BootstrapInterface
         ]);
 
         $this->trigger(static::EVENT_AFTER_EXECUTE, $event);
+
+        if ($requestJob instanceof Component) {
+            $event = new EventJob([
+                'job' => $requestJob,
+            ]);
+
+            /* @var Component $requestJob */
+            $requestJob->trigger(ExecuteJob::EVENT_AFTER_EXECUTE, $event);
+        }
     }
 }
