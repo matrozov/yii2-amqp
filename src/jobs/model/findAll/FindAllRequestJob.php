@@ -19,7 +19,7 @@ abstract class FindAllRequestJob extends ModelRequestJob
      */
     public function findAll(Connection $connection = null)
     {
-        $response = $this->sendRequest('executeFindAll', $connection);
+        $response = $this->sendRequest($connection);
 
         if ($response === false) {
             return false;

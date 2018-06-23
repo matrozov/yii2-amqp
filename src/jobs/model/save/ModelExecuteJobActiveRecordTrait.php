@@ -14,7 +14,7 @@ trait ModelExecuteJobActiveRecordTrait
      * @return bool
      * @throws
      */
-    public function executeSave()
+    public function execute()
     {
         if (!($this instanceof ActiveRecord)) {
             throw new ErrorException('Should be ActiveRecord instance!');

@@ -13,13 +13,12 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 abstract class ModelRequestJob extends Model implements RpcRequestJob
 {
     /**
-     * @param string          $method
      * @param Connection|null $connection
      *
      * @return ModelInternalResponseJob|bool|null
      * @throws
      */
-    public function sendRequest($method, Connection $connection = null)
+    public function sendRequest(Connection $connection = null)
     {
         if (!$this->validate()) {
             return false;
@@ -31,7 +30,6 @@ abstract class ModelRequestJob extends Model implements RpcRequestJob
             'model'     => $this,
 
             'className' => static::class,
-            'method'    => $method,
             'scenario'  => $this->scenario,
             'data'      => $this->toArray(),
         ]);

@@ -18,7 +18,7 @@ abstract class SaveRequestJob extends ModelRequestJob
      */
     public function save(Connection $connection = null)
     {
-        $response = $this->sendRequest('executeSave', $connection);
+        $response = $this->sendRequest($connection);
 
         if ($response === false) {
             return false;

@@ -19,7 +19,7 @@ abstract class DeleteAllRequestJob extends ModelRequestJob
      */
     public function deleteAll(Connection $connection = null)
     {
-        $response = $this->sendRequest('executeDeleteAll', $connection);
+        $response = $this->sendRequest($connection);
 
         if ($response === false) {
             return false;

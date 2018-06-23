@@ -19,7 +19,7 @@ abstract class FindOneRequestJob extends ModelRequestJob
      */
     public function findOne(Connection $connection = null)
     {
-        $response = $this->sendRequest('executeFindOne', $connection);
+        $response = $this->sendRequest($connection);
 
         if ($response === false) {
             return false;

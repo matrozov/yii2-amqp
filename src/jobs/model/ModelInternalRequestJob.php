@@ -17,7 +17,6 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
  * @property Model  $model
  *
  * @property string $className
- * @property string $method
  * @property string $scenario
  * @property array  $data
  */
@@ -27,7 +26,6 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
     public $model;
 
     public $className;
-    public $method;
     public $scenario;
     public $data;
 
@@ -61,10 +59,6 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
             throw new ErrorException('Class must be instance of Model!');
         }
 
-        if (!method_exists($model, $this->method)) {
-            throw new ErrorException('Object must implement required method!');
-        }
-
         $response = new ModelInternalResponseJob();
 
         $this->beforeExecute($model);
@@ -72,7 +66,8 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
         $response->success = $model->validate();
 
         if ($response->success) {
-            $response->result  = call_user_func([$model, $this->method]);
+            /** @var ModelExecuteJob $model */
+            $response->result  = $model->execute();
             $response->success = ($response->result !== false) && !$model->hasErrors();
         }
 
@@ -115,7 +110,6 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
     {
         return [
             'className',
-            'method',
             'scenario',
             'data',
         ];
