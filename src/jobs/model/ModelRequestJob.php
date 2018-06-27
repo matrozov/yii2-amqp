@@ -1,6 +1,7 @@
 <?php
 namespace matrozov\yii2amqp\jobs\model;
 
+use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 
 /**
@@ -9,6 +10,8 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
  */
 interface ModelRequestJob extends RpcRequestJob
 {
+    public function sendRequest($classType, Connection $connection = null);
+
     public function validate();
     public function getScenario();
     public function toArray();
