@@ -5,7 +5,5 @@ use matrozov\yii2amqp\jobs\model\ModelExecuteJob;
 
 interface FindOneExecuteJob extends ModelExecuteJob
 {
-    const EXECUTE_METHOD = 'executeFindOne';
-
     public function executeFindOne();
 }

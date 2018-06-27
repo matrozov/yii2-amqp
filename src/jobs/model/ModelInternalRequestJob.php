@@ -70,8 +70,11 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
         $response->success = $model->validate();
 
         if ($response->success) {
-            /** @var ModelExecuteJob $model */
-            $response->result  = call_user_func([$model, $classType::EXECUTE_METHOD]);
+            if (!preg_match('#\\([^\\]*)ExecuteJob$#', $classType, $matches)) {
+                throw new ErrorException('Can\'t extract method name.');
+            }
+
+            $response->result  = call_user_func([$model, 'execute' . $matches[1]]);
             $response->success = ($response->result !== false) && !$model->hasErrors();
         }
 
