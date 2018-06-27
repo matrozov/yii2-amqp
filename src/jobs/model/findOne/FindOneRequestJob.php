@@ -10,5 +10,13 @@ use matrozov\yii2amqp\jobs\model\ModelRequestJob;
  */
 interface FindOneRequestJob extends ModelRequestJob
 {
+    /**
+     * [!] Use FindOneRequestJobTrait
+     *
+     * @param Connection|null $connection
+     *
+     * @return array|object|bool
+     * @throws
+     */
     public function findOne(Connection $connection = null);
 }

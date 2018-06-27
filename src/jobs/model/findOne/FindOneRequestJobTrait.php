@@ -14,8 +14,8 @@ trait FindOneRequestJobTrait
     /**
      * @param Connection|null $connection
      *
-     * @return array|bool|null
-     * @throws ErrorException
+     * @return array|object|bool
+     * @throws
      */
     public function findOne(Connection $connection = null)
     {

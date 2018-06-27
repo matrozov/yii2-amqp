@@ -14,8 +14,8 @@ trait DeleteAllRequestJobTrait
     /**
      * @param Connection|null $connection
      *
-     * @return array|bool|null
-     * @throws ErrorException
+     * @return integer|bool
+     * @throws
      */
     public function deleteAll(Connection $connection = null)
     {

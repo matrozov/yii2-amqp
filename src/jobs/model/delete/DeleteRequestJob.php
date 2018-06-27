@@ -10,5 +10,13 @@ use matrozov\yii2amqp\jobs\model\ModelRequestJob;
  */
 interface DeleteRequestJob extends ModelRequestJob
 {
+    /**
+     * [!] Use DeleteRequestJobTrait
+     *
+     * @param Connection|null $connection
+     *
+     * @return bool
+     * @throws
+     */
     public function delete(Connection $connection = null);
 }

@@ -10,6 +10,14 @@ use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
  */
 interface ModelRequestJob extends RpcRequestJob
 {
+    /**
+     * [!] Use ModelRequestJobTrait
+     *
+     * @param                 $classType
+     * @param Connection|null $connection
+     *
+     * @return mixed
+     */
     public function sendRequest($classType, Connection $connection = null);
 
     public function validate();
