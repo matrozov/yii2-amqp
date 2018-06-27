@@ -25,6 +25,7 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
     /* @var Model */
     public $model;
 
+    public $classType;
     public $className;
     public $scenario;
     public $data;
@@ -52,11 +53,14 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
      */
     public function execute()
     {
+        /** @var ModelExecuteJob $classType */
+        $classType = $this->classType;
+
         /* @var Model $model */
         $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className, 'scenario' => $this->scenario], $this->data));
 
-        if (!($model instanceof Model)) {
-            throw new ErrorException('Class must be instance of Model!');
+        if (!($model instanceof $classType)) {
+            throw new ErrorException('Class must be instance of ModelExecuteJob!');
         }
 
         $response = new ModelInternalResponseJob();
@@ -67,7 +71,7 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
 
         if ($response->success) {
             /** @var ModelExecuteJob $model */
-            $response->result  = $model->execute();
+            $response->result  = call_user_func([$model, $classType::EXECUTE_METHOD]);
             $response->success = ($response->result !== false) && !$model->hasErrors();
         }
 

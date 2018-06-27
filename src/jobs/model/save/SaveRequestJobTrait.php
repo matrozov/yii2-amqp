@@ -3,12 +3,13 @@ namespace matrozov\yii2amqp\jobs\model\save;
 
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\model\ModelRequestJob;
+use matrozov\yii2amqp\jobs\model\ModelRequestJobTrait;
 
 /**
- * Class SaveRequestJob
+ * Trait SaveRequestJobTrait
  * @package matrozov\yii2amqp\jobs\model\save
  */
-abstract class SaveRequestJob extends ModelRequestJob
+trait SaveRequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -18,13 +19,15 @@ abstract class SaveRequestJob extends ModelRequestJob
      */
     public function save(Connection $connection = null)
     {
-        $response = $this->sendRequest($connection);
+        /** @var ModelRequestJobTrait $this */
+        $response = $this->sendRequest(SaveExecuteJob::class, $connection);
 
         if ($response === false) {
             return false;
         }
 
         if (is_array($response->result)) {
+            /** @var ModelRequestJob $this */
             $this->setAttributes($response->result, false);
         }
 

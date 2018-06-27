@@ -3,13 +3,13 @@ namespace matrozov\yii2amqp\jobs\model\findAll;
 
 use yii\base\ErrorException;
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\jobs\model\ModelRequestJob;
+use matrozov\yii2amqp\jobs\model\ModelRequestJobTrait;
 
 /**
- * Class FindAllRequestJob
- * @package matrozov\yii2amqp\jobs\model\model
+ * Trait FindAllRequestJobTrait
+ * @package matrozov\yii2amqp\jobs\model\findAll
  */
-abstract class FindAllRequestJob extends ModelRequestJob
+trait FindAllRequestJobTrait
 {
     /**
      * @param Connection|null $connection
@@ -19,7 +19,8 @@ abstract class FindAllRequestJob extends ModelRequestJob
      */
     public function findAll(Connection $connection = null)
     {
-        $response = $this->sendRequest($connection);
+        /** @var ModelRequestJobTrait $this */
+        $response = $this->sendRequest(FindAllExecuteJob::class, $connection);
 
         if ($response === false) {
             return false;
