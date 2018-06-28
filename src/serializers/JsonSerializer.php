@@ -59,8 +59,12 @@ class JsonSerializer implements Serializer
     {
         $data = [];
 
-        foreach ($model->resolveFields([], []) as $field => $definition) {
-            $data[$field] = is_string($definition) ? $model->$definition : $definition($this, $field);
+        foreach ($model->fields() as $field => $definition) {
+            if (is_int($field)) {
+                $field = $definition;
+            }
+
+            $data[$field] = is_string($definition) ? $model->$definition : $definition($model, $field);
         }
 
         return $data;
