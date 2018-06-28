@@ -116,6 +116,7 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
     public function fields()
     {
         return [
+            'classType',
             'className',
             'scenario',
             'data',
