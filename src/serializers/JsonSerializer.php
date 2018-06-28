@@ -51,6 +51,22 @@ class JsonSerializer implements Serializer
     }
 
     /**
+     * @param Model $model
+     *
+     * @return array
+     */
+    protected function modelToArray(Model $model)
+    {
+        $data = [];
+
+        foreach ($model->resolveFields([], []) as $field => $definition) {
+            $data[$field] = is_string($definition) ? $model->$definition : $definition($this, $field);
+        }
+
+        return $data;
+    }
+
+    /**
      * @param $data
      *
      * @return array
@@ -59,7 +75,7 @@ class JsonSerializer implements Serializer
     protected function toArray($data)
     {
         if ($data instanceof Model) {
-            $result = $this->iterateArray($data->toArray());
+            $result = $this->iterateArray($this->modelToArray($data));
 
             $result['class']    = get_class($data);
             $result['scenario'] = $data->getScenario();
