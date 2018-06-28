@@ -61,7 +61,8 @@ class JsonSerializer implements Serializer
         if ($data instanceof Model) {
             $result = $this->iterateArray($data->toArray());
 
-            $result['class'] = get_class($data);
+            $result['class']    = get_class($data);
+            $result['scenario'] = $data->getScenario();
 
             return $result;
         }

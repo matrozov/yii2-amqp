@@ -34,12 +34,9 @@ trait ModelRequestJobTrait
 
         /** @var ModelRequestJob $this */
         $request = new ModelInternalRequestJob([
-            'model'     => $this,
-
             'classType' => $classType,
             'className' => static::class,
-            'scenario'  => $this->getScenario(),
-            'data'      => $this->toArray(),
+            'model'     => $this,
         ]);
 
         /** @var ModelRequestJob $this */

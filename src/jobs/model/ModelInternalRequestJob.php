@@ -16,19 +16,16 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
  *
  * @property Model  $model
  *
+ * @property string $classType
  * @property string $className
- * @property string $scenario
  * @property array  $data
  */
 class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecuteJob
 {
     /* @var Model */
-    public $model;
-
     public $classType;
     public $className;
-    public $scenario;
-    public $data;
+    public $model;
 
     public function init()
     {
@@ -56,31 +53,28 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
         /** @var ModelExecuteJob $classType */
         $classType = $this->classType;
 
-        /* @var Model $model */
-        $model = Yii::createObject(ArrayHelper::merge(['class' => $this->className, 'scenario' => $this->scenario], $this->data));
-
-        if (!($model instanceof $classType)) {
+        if (!($this->model instanceof $classType)) {
             throw new ErrorException('Class must be instance of ModelExecuteJob!');
         }
 
         $response = new ModelInternalResponseJob();
 
-        $this->beforeExecute($model);
+        $this->beforeExecute($this->model);
 
-        $response->success = $model->validate();
+        $response->success = $this->model->validate();
 
         if ($response->success) {
             if (!preg_match('#\\\([^\\\]*)ExecuteJob$#', $classType, $matches)) {
                 throw new ErrorException('Can\'t extract method name.');
             }
 
-            $response->result  = call_user_func([$model, 'execute' . $matches[1]]);
-            $response->success = ($response->result !== false) && !$model->hasErrors();
+            $response->result  = call_user_func([$this->model, 'execute' . $matches[1]]);
+            $response->success = ($response->result !== false) && !$this->model->hasErrors();
         }
 
-        $this->afterExecute($model);
+        $this->afterExecute($this->model);
 
-        $response->errors = $model->getErrors();
+        $response->errors = $this->model->getErrors();
 
         return $response;
     }
@@ -111,15 +105,5 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
 
         /* @var Component $model */
         $model->trigger(static::EVENT_AFTER_EXECUTE, $event);
-    }
-
-    public function fields()
-    {
-        return [
-            'classType',
-            'className',
-            'scenario',
-            'data',
-        ];
     }
 }
