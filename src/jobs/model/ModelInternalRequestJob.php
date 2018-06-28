@@ -2,11 +2,9 @@
 namespace matrozov\yii2amqp\jobs\model;
 
 use matrozov\yii2amqp\jobs\simple\EventJob;
-use Yii;
 use yii\base\Component;
 use yii\base\Model;
 use yii\base\ErrorException;
-use yii\helpers\ArrayHelper;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 
@@ -14,17 +12,13 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
  * Class ModelInternalRequestJob
  * @package matrozov\yii2amqp\jobs\model
  *
- * @property Model  $model
- *
  * @property string $classType
- * @property string $className
- * @property array  $data
+ * @property Model  $model
  */
 class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecuteJob
 {
     /* @var Model */
     public $classType;
-    public $className;
     public $model;
 
     public function init()

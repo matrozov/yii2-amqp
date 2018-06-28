@@ -35,7 +35,6 @@ trait ModelRequestJobTrait
         /** @var ModelRequestJob $this */
         $request = new ModelInternalRequestJob([
             'classType' => $classType,
-            'className' => static::class,
             'model'     => $this,
         ]);
 
