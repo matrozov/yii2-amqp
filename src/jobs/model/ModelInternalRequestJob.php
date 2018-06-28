@@ -70,7 +70,7 @@ class ModelInternalRequestJob extends Model implements RpcRequestJob, RpcExecute
         $response->success = $model->validate();
 
         if ($response->success) {
-            if (!preg_match('#\\([^\\]*)ExecuteJob$#', $classType, $matches)) {
+            if (!preg_match('#\\\([^\\\]*)ExecuteJob$#', $classType, $matches)) {
                 throw new ErrorException('Can\'t extract method name.');
             }
 
