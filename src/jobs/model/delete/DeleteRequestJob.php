@@ -15,7 +15,7 @@ interface DeleteRequestJob extends ModelRequestJob
      *
      * @param Connection|null $connection
      *
-     * @return bool
+     * @return integer|bool
      * @throws
      */
     public function delete(Connection $connection = null);
