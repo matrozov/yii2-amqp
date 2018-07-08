@@ -26,7 +26,7 @@ trait DeleteAllRequestJobTrait
             return false;
         }
 
-        if (!is_integer($response->result)) {
+        if (!is_int($response->result)) {
             throw new ErrorException('Result must be integer (affected rows)!');
         }
 

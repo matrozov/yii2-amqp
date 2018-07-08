@@ -26,7 +26,7 @@ trait DeleteRequestJobTrait
             return false;
         }
 
-        if (!is_bool($response->result) || !is_int($response->result)) {
+        if (!is_bool($response->result) && !is_int($response->result)) {
             throw new ErrorException('Result must be boolean or integer!');
         }
 
