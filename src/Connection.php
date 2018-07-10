@@ -1,6 +1,7 @@
 <?php
 namespace matrozov\yii2amqp;
 
+use matrozov\yii2amqp\jobs\simple\SilentJobException;
 use Yii;
 use yii\base\Component;
 use yii\base\Application as BaseApp;
@@ -721,7 +722,12 @@ class Connection extends Component implements BootstrapInterface
                 $consumer->reject($message, false);
             }
 
-            throw $e;
+            if ($e instanceof SilentJobException) {
+                return;
+            }
+            else {
+                throw $e;
+            }
         }
 
         $consumer->acknowledge($message);
@@ -751,7 +757,12 @@ class Connection extends Component implements BootstrapInterface
                 $consumer->reject($message, false);
             }
 
-            throw $e;
+            if ($e instanceof SilentJobException) {
+                return;
+            }
+            else {
+                throw $e;
+            }
         }
 
         $consumer->acknowledge($message);
