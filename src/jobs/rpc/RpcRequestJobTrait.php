@@ -11,19 +11,18 @@ use yii\base\ErrorException;
  */
 trait RpcRequestJobTrait
 {
-    use RequestJobTrait {
-        send as protected sendSimple;
-    }
-
     /**
      * @param Connection $connection
      *
-     * @return bool
+     * @return RpcRequestJob|bool
      * @throws ErrorException
      */
     public function send(Connection $connection = null)
     {
-        $response = $this->sendSimple($connection);
+        $connection = Connection::instance($connection);
+
+        /* @var RpcRequestJob $this */
+        $response = $connection->send($this);
 
         if (!($response instanceof RpcResponseJob)) {
             throw new ErrorException('Response must be instance of RpcResponseJob');

@@ -12,9 +12,7 @@ use yii\base\ErrorException;
  */
 trait DeleteModelRequestJobTrait
 {
-    use ModelRequestJobTrait {
-        send as protected;
-    }
+    use ModelRequestJobTrait;
 
     /**
      * @param Connection $connection

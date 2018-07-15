@@ -11,6 +11,4 @@ use matrozov\yii2amqp\jobs\BaseJob;
 interface RequestJob extends BaseJob
 {
     public static function exchangeName();
-
-    public function send(Connection $connection = null);
 }

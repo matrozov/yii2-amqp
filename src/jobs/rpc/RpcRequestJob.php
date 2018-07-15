@@ -10,5 +10,5 @@ use matrozov\yii2amqp\jobs\simple\RequestJob;
  */
 interface RpcRequestJob extends RequestJob
 {
-    public function send(Connection $connection = null);
+
 }

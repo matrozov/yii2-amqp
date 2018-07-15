@@ -11,9 +11,7 @@ use matrozov\yii2amqp\jobs\model\ModelResponseJob;
  */
 trait SaveModelRequestJobTrait
 {
-    use ModelRequestJobTrait {
-        send as protected;
-    }
+    use ModelRequestJobTrait;
 
     /**
      * @param Connection $connection

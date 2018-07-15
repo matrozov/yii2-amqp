@@ -10,5 +10,5 @@ use matrozov\yii2amqp\jobs\model\ModelRequestJob;
  */
 interface SaveModelRequestJob extends ModelRequestJob
 {
-    public function save(Connection $connection = null);
+
 }

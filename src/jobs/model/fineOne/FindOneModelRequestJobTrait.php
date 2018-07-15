@@ -12,9 +12,7 @@ use yii\base\ErrorException;
  */
 trait FindOneModelRequestJobTrait
 {
-    use ModelRequestJobTrait {
-        send as protected;
-    }
+    use ModelRequestJobTrait;
 
     /**
      * @param Connection $connection

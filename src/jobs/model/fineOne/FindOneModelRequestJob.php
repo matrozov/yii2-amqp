@@ -10,5 +10,5 @@ use matrozov\yii2amqp\jobs\model\ModelRequestJob;
  */
 interface FindOneModelRequestJob extends ModelRequestJob
 {
-    public function findOne(Connection $connection = null);
+
 }
