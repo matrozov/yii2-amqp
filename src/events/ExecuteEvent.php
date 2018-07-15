@@ -1,8 +1,8 @@
 <?php
 namespace matrozov\yii2amqp\events;
 
-use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 use Interop\Amqp\AmqpConsumer;
+use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 
 /**
  * Class ExecuteEvent

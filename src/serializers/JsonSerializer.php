@@ -1,11 +1,11 @@
 <?php
 namespace matrozov\yii2amqp\serializers;
 
-use Yii;
-use yii\helpers\Json;
-use yii\base\Model;
-use yii\base\ErrorException;
 use matrozov\yii2amqp\jobs\BaseJob;
+use Yii;
+use yii\base\ErrorException;
+use yii\base\Model;
+use yii\helpers\Json;
 
 /**
  * Class JsonSerializer
@@ -81,23 +81,25 @@ class JsonSerializer implements Serializer
     }
 
     /**
-     * @param string $json
+     * @param string      $json
+     * @param string|null $jobClassName
      *
      * @return object
      * @throws
      */
-    public function deserialize($json)
+    public function deserialize($json, $jobClassName = null)
     {
-        return $this->fromArray(Json::decode($json));
+        return $this->fromArray(Json::decode($json), $jobClassName);
     }
 
     /**
-     * @param $data
+     * @param string      $data
+     * @param string|null $className
      *
-     * @return array|object
+     * @return string|array|object
      * @throws
      */
-    protected function fromArray($data)
+    protected function fromArray($data, $className = null)
     {
         if (!is_array($data)) {
             return $data;
@@ -111,6 +113,10 @@ class JsonSerializer implements Serializer
 
         if (!isset($result['class'])) {
             return $result;
+        }
+
+        if ($className) {
+            $result['class'] = $className;
         }
 
         return Yii::createObject($result);

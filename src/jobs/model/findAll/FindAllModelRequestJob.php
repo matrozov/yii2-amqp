@@ -5,18 +5,10 @@ use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\model\ModelRequestJob;
 
 /**
- * Interface FindAllRequestJob
+ * Interface FindAllModelRequestJob
  * @package matrozov\yii2amqp\jobs\model\findAll
  */
-interface FindAllRequestJob extends ModelRequestJob
+interface FindAllModelRequestJob extends ModelRequestJob
 {
-    /**
-     * [!] Use FindAllRequestJobTrait
-     *
-     * @param Connection|null $connection
-     *
-     * @return array|bool
-     * @throws
-     */
     public function findAll(Connection $connection = null);
 }

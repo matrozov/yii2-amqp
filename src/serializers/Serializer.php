@@ -23,10 +23,11 @@ interface Serializer
     public function serialize(BaseJob $job);
 
     /**
-     * @param $data
+     * @param string      $data
+     * @param string|null $jobClassName
      *
      * @return BaseJob
      * @throws
      */
-    public function deserialize($data);
+    public function deserialize($data, $jobClassName = null);
 }

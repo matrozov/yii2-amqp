@@ -2,10 +2,10 @@
 namespace matrozov\yii2amqp\jobs;
 
 /**
- * Interface BaseJob
+ * Interface SilentJobException
  * @package matrozov\yii2amqp\jobs
  */
-interface BaseJob
+interface SilentJobException
 {
 
 }

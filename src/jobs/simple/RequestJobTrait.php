@@ -5,15 +5,15 @@ use matrozov\yii2amqp\Connection;
 
 /**
  * Trait RequestJobTrait
- * @package matrozov\yii2amqp\traits
+ * @package matrozov\yii2amqp\jobs\simple
  */
 trait RequestJobTrait
 {
     /**
-     * @param Connection|null $connection
+     * @param Connection $connection
      *
      * @return bool
-     * @throws
+     * @throws \yii\base\ErrorException
      */
     public function send(Connection $connection = null)
     {

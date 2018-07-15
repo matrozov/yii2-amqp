@@ -5,18 +5,10 @@ use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\model\ModelRequestJob;
 
 /**
- * Interface DeleteAllRequestJob
+ * Interface DeleteAllModelRequestJob
  * @package matrozov\yii2amqp\jobs\model\deleteAll
  */
-interface DeleteAllRequestJob extends ModelRequestJob
+interface DeleteAllModelRequestJob extends ModelRequestJob
 {
-    /**
-     * [!] Use DeleteAllRequestJob
-     *
-     * @param Connection|null $connection
-     *
-     * @return integer|bool
-     * @throws
-     */
     public function deleteAll(Connection $connection = null);
 }

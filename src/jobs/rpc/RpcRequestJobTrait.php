@@ -2,32 +2,31 @@
 namespace matrozov\yii2amqp\jobs\rpc;
 
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\jobs\simple\RequestJobTrait;
+use yii\base\ErrorException;
 
 /**
  * Trait RpcRequestJobTrait
- * @package matrozov\yii2amqp\traits
+ * @package matrozov\yii2amqp\jobs\rpc
  */
 trait RpcRequestJobTrait
 {
+    use RequestJobTrait {
+        send as protected sendSimple;
+    }
+
     /**
-     * @param Connection|null $connection
+     * @param Connection $connection
      *
-     * @return RpcResponseJob|bool|null
-     * @throws
+     * @return bool
+     * @throws ErrorException
      */
     public function send(Connection $connection = null)
     {
-        $connection = Connection::instance($connection);
+        $response = $this->sendSimple($connection);
 
-        /* @var RpcRequestJob $this */
-        $response = $connection->send($this);
-
-        if (!$response) {
-            return false;
-        }
-
-        if ($response instanceof RpcFalseResponseJob) {
-            return false;
+        if (!($response instanceof RpcResponseJob)) {
+            throw new ErrorException('Response must be instance of RpcResponseJob');
         }
 
         return $response;

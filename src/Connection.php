@@ -1,39 +1,40 @@
 <?php
 namespace matrozov\yii2amqp;
 
-use matrozov\yii2amqp\jobs\simple\SilentJobException;
-use Yii;
-use yii\base\Component;
-use yii\base\Application as BaseApp;
-use yii\console\Application as ConsoleApp;
-use yii\di\Instance;
-use yii\base\Event;
-use yii\base\InvalidConfigException;
-use yii\base\BootstrapInterface;
-use yii\base\ErrorException;
-use yii\helpers\ArrayHelper;
-use yii\helpers\Inflector;
-use Interop\Amqp\AmqpContext;
+use Enqueue\AmqpLib\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
+use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Interop\Amqp\Impl\AmqpBind;
 use Interop\Queue\PsrDestination;
-use Enqueue\AmqpLib\AmqpConnectionFactory;
+use matrozov\yii2amqp\events\ExecuteEvent;
+use matrozov\yii2amqp\events\JobEvent;
+use matrozov\yii2amqp\events\SendEvent;
 use matrozov\yii2amqp\jobs\BaseJob;
-use matrozov\yii2amqp\jobs\simple\RequestJob;
-use matrozov\yii2amqp\jobs\simple\ExecuteJob;
-use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
-use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
-use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
-use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
+use matrozov\yii2amqp\jobs\RequestNamedJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
-use matrozov\yii2amqp\jobs\simple\EventJob;
+use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
+use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
+use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
+use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
+use matrozov\yii2amqp\jobs\SilentJobException;
+use matrozov\yii2amqp\jobs\simple\ExecuteJob;
+use matrozov\yii2amqp\jobs\simple\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
-use matrozov\yii2amqp\events\ExecuteEvent;
-use matrozov\yii2amqp\events\SendEvent;
+use Yii;
+use yii\base\Application as BaseApp;
+use yii\base\BootstrapInterface;
+use yii\base\Component;
+use yii\base\ErrorException;
+use yii\base\Event;
+use yii\base\InvalidConfigException;
+use yii\console\Application as ConsoleApp;
+use yii\di\Instance;
+use yii\helpers\ArrayHelper;
+use yii\helpers\Inflector;
 
 /**
  * Class Connection
@@ -80,7 +81,8 @@ use matrozov\yii2amqp\events\SendEvent;
  */
 class Connection extends Component implements BootstrapInterface
 {
-    const PARAM_ATTEMPT = 'amqp-attempt';
+    const PROPERTY_ATTEMPT  = 'amqp-attempt';
+    const PROPERTY_JOB_NAME = 'amqp-job-name';
 
     const EVENT_BEFORE_SEND    = 'beforeSend';
     const EVENT_AFTER_SEND     = 'afterSend';
@@ -262,6 +264,13 @@ class Connection extends Component implements BootstrapInterface
      * @var []array
      */
     public $bindings = [];
+
+    /**
+     * Named Job
+     *
+     * @var []string
+     */
+    public $jobNames = [];
 
     /**
      * Default Queue config
@@ -543,7 +552,17 @@ class Connection extends Component implements BootstrapInterface
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
         $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
-        $message->setProperty(self::PARAM_ATTEMPT, 1);
+        $message->setProperty(self::PROPERTY_ATTEMPT, 1);
+
+        $jobName = array_search(get_class($job), $this->jobNames);
+
+        if ($job instanceof RequestNamedJob) {
+            $jobName = $job::jobName();
+        }
+
+        if ($jobName) {
+            $message->setProperty(self::PROPERTY_JOB_NAME, $jobName);
+        }
 
         $message->setBody($this->serializer->serialize($job));
 
@@ -695,7 +714,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeExecute($job, null, $message, $consumer);
 
-            $responseJob = $job->execute();
+            $responseJob = $job->execute($this, $message);
 
             $this->afterExecute($job, $responseJob, $message, $consumer);
 
@@ -745,7 +764,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeExecute($job, null, $message, $consumer);
 
-            $job->execute();
+            $job->execute($this, $message);
 
             $this->afterExecute($job, null, $message, $consumer);
         }
@@ -776,7 +795,22 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleMessage(AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $job = $this->serializer->deserialize($message->getBody());
+        $jobClassName = $message->getProperty(self::PROPERTY_JOB_NAME);
+
+        if ($jobClassName !== null) {
+            if (array_key_exists($jobClassName, $this->jobNames)) {
+                $jobClassName = $this->jobNames[$jobClassName];
+
+                if (!class_exists($jobClassName)) {
+                    throw new ErrorException('Named job className not found: ' . $jobClassName);
+                }
+            }
+            else {
+                $jobClassName = null;
+            }
+        }
+
+        $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
 
         /* @var ExecuteJob $job */
         if (!($job instanceof ExecuteJob)) {
@@ -833,7 +867,7 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function redelivery(AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $attempt = $message->getProperty(self::PARAM_ATTEMPT, 1);
+        $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
         if ($attempt >= $this->maxAttempts) {
             return false;
@@ -842,7 +876,7 @@ class Connection extends Component implements BootstrapInterface
         $newMessage = $this->_context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
         $newMessage->setDeliveryMode($message->getDeliveryMode());
 
-        $newMessage->setProperty(self::PARAM_ATTEMPT, ++$attempt);
+        $newMessage->setProperty(self::PROPERTY_ATTEMPT, ++$attempt);
 
         $produces = $this->_context->createProducer();
         $produces->send($consumer->getQueue(), $newMessage);
@@ -866,12 +900,12 @@ class Connection extends Component implements BootstrapInterface
         $this->trigger(static::EVENT_BEFORE_SEND, $event);
 
         if ($job instanceof Component) {
-            $event = new EventJob([
+            $event = new JobEvent([
                 'job' => $job,
             ]);
 
             /* @var Component $job */
-            $job->trigger(RequestJob::EVENT_BEFORE_SEND, $event);
+            $job->trigger(static::EVENT_BEFORE_SEND, $event);
         }
     }
 
@@ -891,12 +925,12 @@ class Connection extends Component implements BootstrapInterface
         $this->trigger(static::EVENT_AFTER_SEND, $event);
 
         if ($job instanceof Component) {
-            $event = new EventJob([
+            $event = new JobEvent([
                 'job' => $job,
             ]);
 
             /* @var Component $job */
-            $job->trigger(RequestJob::EVENT_AFTER_SEND, $event);
+            $job->trigger(static::EVENT_AFTER_SEND, $event);
         }
     }
 
@@ -918,12 +952,12 @@ class Connection extends Component implements BootstrapInterface
         $this->trigger(static::EVENT_BEFORE_EXECUTE, $event);
 
         if ($requestJob instanceof Component) {
-            $event = new EventJob([
+            $event = new JobEvent([
                 'job' => $requestJob,
             ]);
 
             /* @var Component $requestJob */
-            $requestJob->trigger(ExecuteJob::EVENT_BEFORE_EXECUTE, $event);
+            $requestJob->trigger(static::EVENT_BEFORE_EXECUTE, $event);
         }
     }
 
@@ -945,12 +979,12 @@ class Connection extends Component implements BootstrapInterface
         $this->trigger(static::EVENT_AFTER_EXECUTE, $event);
 
         if ($requestJob instanceof Component) {
-            $event = new EventJob([
+            $event = new JobEvent([
                 'job' => $requestJob,
             ]);
 
             /* @var Component $requestJob */
-            $requestJob->trigger(ExecuteJob::EVENT_AFTER_EXECUTE, $event);
+            $requestJob->trigger(static::EVENT_AFTER_EXECUTE, $event);
         }
     }
 }
