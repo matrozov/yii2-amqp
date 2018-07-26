@@ -17,7 +17,7 @@ trait FindAllModelRequestJobTrait
     /**
      * @param Connection $connection
      *
-     * @return bool|\matrozov\yii2amqp\jobs\rpc\RpcResponseJob|null
+     * @return array|bool|null
      * @throws
      */
     public function findAll(Connection $connection = null)

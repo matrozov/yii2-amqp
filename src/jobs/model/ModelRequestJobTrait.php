@@ -42,7 +42,7 @@ trait ModelRequestJobTrait
      *
      * @return bool
      */
-    public function afterModelRequest(ModelResponseJob $response)
+    public function afterModelRequest($response)
     {
         if (!$response) {
             return false;

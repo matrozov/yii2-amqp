@@ -17,7 +17,7 @@ trait DeleteModelRequestJobTrait
     /**
      * @param Connection $connection
      *
-     * @return bool|\matrozov\yii2amqp\jobs\rpc\RpcResponseJob|null
+     * @return integer|bool|null
      * @throws
      */
     public function delete(Connection $connection = null)

@@ -71,6 +71,8 @@ use yii\helpers\Inflector;
  * @property []array        $queues
  * @property []array        $bindings
  *
+ * @property []string       $jobNames
+ *
  * @property []array        $defaultQueue
  * @property []array        $defaultExchange
  * @property []array        $defaultBind

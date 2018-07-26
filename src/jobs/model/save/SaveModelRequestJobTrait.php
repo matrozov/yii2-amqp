@@ -16,7 +16,7 @@ trait SaveModelRequestJobTrait
     /**
      * @param Connection $connection
      *
-     * @return bool|\matrozov\yii2amqp\jobs\rpc\RpcResponseJob|null
+     * @return bool|null
      * @throws
      */
     public function save(Connection $connection = null)

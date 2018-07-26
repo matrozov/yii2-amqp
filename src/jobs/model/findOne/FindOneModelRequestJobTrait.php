@@ -17,7 +17,7 @@ trait FindOneModelRequestJobTrait
     /**
      * @param Connection $connection
      *
-     * @return bool|\matrozov\yii2amqp\jobs\rpc\RpcResponseJob|null
+     * @return object|array|bool|null
      * @throws
      */
     public function findOne(Connection $connection = null)
