@@ -13,7 +13,9 @@ use matrozov\yii2amqp\events\ExecuteEvent;
 use matrozov\yii2amqp\events\JobEvent;
 use matrozov\yii2amqp\events\SendEvent;
 use matrozov\yii2amqp\jobs\BaseJob;
+use matrozov\yii2amqp\jobs\PriorityJob;
 use matrozov\yii2amqp\jobs\RequestNamedJob;
+use matrozov\yii2amqp\jobs\RetryableJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
 use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
@@ -280,7 +282,8 @@ class Connection extends Component implements BootstrapInterface
      * @var []array
      */
     public $defaultQueue = [
-        'flags' => AmqpQueue::FLAG_DURABLE,
+        'flags'     => AmqpQueue::FLAG_DURABLE,
+        'arguments' => [],
     ];
 
     /**
@@ -289,8 +292,9 @@ class Connection extends Component implements BootstrapInterface
      * @var []array
      */
     public $defaultExchange = [
-        'type'  => AmqpTopic::TYPE_DIRECT,
-        'flags' => AmqpTopic::FLAG_DURABLE,
+        'type'      => AmqpTopic::TYPE_DIRECT,
+        'flags'     => AmqpTopic::FLAG_DURABLE,
+        'arguments' => [],
     ];
 
     /**
@@ -484,7 +488,7 @@ class Connection extends Component implements BootstrapInterface
         foreach ($this->queues as $queueConfig) {
             $queueConfig = ArrayHelper::merge($this->defaultQueue, $queueConfig);
 
-            foreach (['name', 'flags'] as $field) {
+            foreach (['name', 'flags', 'arguments'] as $field) {
                 if (!key_exists($field, $queueConfig)) {
                     throw new InvalidConfigException('Queue config must contain `' . $field . '` field');
                 }
@@ -492,6 +496,7 @@ class Connection extends Component implements BootstrapInterface
 
             $queue = $this->_context->createQueue($queueConfig['name']);
             $queue->addFlag($queueConfig['flags']);
+            $queue->setArguments($queueConfig['arguments']);
             $this->_context->declareQueue($queue);
 
             $this->_queues[$queueConfig['name']] = $queue;
@@ -500,7 +505,7 @@ class Connection extends Component implements BootstrapInterface
         foreach ($this->exchanges as $exchangeConfig) {
             $exchangeConfig = ArrayHelper::merge($this->defaultExchange, $exchangeConfig);
 
-            foreach (['name', 'type', 'flags'] as $field) {
+            foreach (['name', 'type', 'flags', 'arguments'] as $field) {
                 if (!key_exists($field, $exchangeConfig)) {
                     throw new InvalidConfigException('Exchange config must contain `' . $field . '` field');
                 }
@@ -509,6 +514,7 @@ class Connection extends Component implements BootstrapInterface
             $exchange = $this->_context->createTopic($exchangeConfig['name']);
             $exchange->setType($exchangeConfig['type']);
             $exchange->addFlag($exchangeConfig['flags']);
+            $exchange->setArguments($exchangeConfig['arguments']);
             $this->_context->declareTopic($exchange);
 
             $this->_exchanges[$exchangeConfig['name']] = $exchange;
@@ -554,6 +560,11 @@ class Connection extends Component implements BootstrapInterface
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
         $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
+
+        if ($job instanceof PriorityJob) {
+            $message->setPriority($job->priority());
+        }
+
         $message->setProperty(self::PROPERTY_ATTEMPT, 1);
 
         $jobName = array_search(get_class($job), $this->jobNames);
@@ -731,7 +742,7 @@ class Connection extends Component implements BootstrapInterface
             $this->replyRpcMessage($message, $responseJob);
         }
         catch (\Exception $e) {
-            if ($this->redelivery($message, $consumer)) {
+            if ($this->redelivery($job, $message, $consumer, $e)) {
                 $consumer->acknowledge($message);
             }
             else {
@@ -771,7 +782,7 @@ class Connection extends Component implements BootstrapInterface
             $this->afterExecute($job, null, $message, $consumer);
         }
         catch (\Exception $e) {
-            if ($this->redelivery($message, $consumer)) {
+            if ($this->redelivery($job, $message, $consumer, $e)) {
                 $consumer->acknowledge($message);
             }
             else {
@@ -861,17 +872,24 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param AmqpMessage  $message
-     * @param AmqpConsumer $consumer
+     * @param BaseJob               $job
+     * @param AmqpMessage           $message
+     * @param AmqpConsumer          $consumer
+     * @param \Exception|\Throwable $error
      *
      * @return bool
      * @throws
      */
-    protected function redelivery(AmqpMessage $message, AmqpConsumer $consumer)
+    protected function redelivery(BaseJob $job, AmqpMessage $message, AmqpConsumer $consumer, $error)
     {
         $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
-        if ($attempt >= $this->maxAttempts) {
+        if ($job instanceof RetryableJob) {
+            if (!$job->canRetry($attempt, $error)) {
+                return false;
+            }
+        }
+        else if ($attempt >= $this->maxAttempts) {
             return false;
         }
 

@@ -119,6 +119,19 @@ class JsonSerializer implements Serializer
             $result['class'] = $className;
         }
 
-        return Yii::createObject($result);
+        if (!is_subclass_of($result['class'], Model::class)) {
+            return Yii::createObject($result);
+        }
+
+        /** @var Model $model */
+        $model = Yii::createObject($result['class']);
+
+        unset($result['class']);
+
+        if (!$model->load($result, '')) {
+            throw new ErrorException('Can\'t load model params');
+        }
+
+        return $model;
     }
 }
