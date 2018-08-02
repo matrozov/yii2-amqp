@@ -126,7 +126,11 @@ class JsonSerializer implements Serializer
         /** @var Model $model */
         $model = Yii::createObject($result['class']);
 
-        unset($result['class']);
+        if (isset($result['scenario'])) {
+            $model->setScenario($result['scenario']);
+        }
+
+        unset($result['class'], $result['scenario']);
 
         if (!$model->load($result, '')) {
             throw new ErrorException('Can\'t load model params');
