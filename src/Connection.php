@@ -74,6 +74,8 @@ use yii\helpers\Inflector;
  * @property string|null    $sslCert
  * @property string|null    $sslKey
  *
+ * @property string         $driver
+ *
  * @property int            $maxAttempts
  * @property int|null       $priority
  * @property float|int|null $ttl
