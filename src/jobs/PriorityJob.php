@@ -8,7 +8,14 @@ namespace matrozov\yii2amqp\jobs;
 interface PriorityJob
 {
     /**
-     * @return int
+     * @param int|null $priority
+     *
+     * @return static
      */
-    public function priority();
+    public function setPriority($priority = null);
+
+    /**
+     * @return int|null
+     */
+    public function getPriority();
 }

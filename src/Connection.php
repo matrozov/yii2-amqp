@@ -1,7 +1,12 @@
 <?php
 namespace matrozov\yii2amqp;
 
-use Enqueue\AmqpLib\AmqpConnectionFactory;
+use Enqueue\AmqpBunny\AmqpConnectionFactory as AmqpBunnyConnectionFactory;
+use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
+use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
+use Enqueue\AmqpTools\DelayStrategyAware;
+use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
+use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpMessage;
@@ -13,6 +18,8 @@ use matrozov\yii2amqp\events\ExecuteEvent;
 use matrozov\yii2amqp\events\JobEvent;
 use matrozov\yii2amqp\events\SendEvent;
 use matrozov\yii2amqp\jobs\BaseJob;
+use matrozov\yii2amqp\jobs\DelayedJob;
+use matrozov\yii2amqp\jobs\ExpiredJob;
 use matrozov\yii2amqp\jobs\PriorityJob;
 use matrozov\yii2amqp\jobs\RequestNamedJob;
 use matrozov\yii2amqp\jobs\RetryableJob;
@@ -68,6 +75,8 @@ use yii\helpers\Inflector;
  * @property string|null    $sslKey
  *
  * @property int            $maxAttempts
+ * @property int|null       $priority
+ * @property float|int|null $ttl
  *
  * @property []array        $exchanges
  * @property []array        $queues
@@ -86,12 +95,19 @@ use yii\helpers\Inflector;
 class Connection extends Component implements BootstrapInterface
 {
     const PROPERTY_ATTEMPT  = 'amqp-attempt';
+    const PROPERTY_DELAY    = 'amqp-delay';
+    const PROPERTY_TTL      = 'amqp-ttl';
     const PROPERTY_JOB_NAME = 'amqp-job-name';
+
+    const ENQUEUE_AMQP_LIB   = 'enqueue/amqp-lib';
+    const ENQUEUE_AMQP_EXT   = 'enqueue/amqp-ext';
+    const ENQUEUE_AMQP_BUNNY = 'enqueue/amqp-bunny';
 
     const EVENT_BEFORE_SEND    = 'beforeSend';
     const EVENT_AFTER_SEND     = 'afterSend';
     const EVENT_BEFORE_EXECUTE = 'beforeExecute';
     const EVENT_AFTER_EXECUTE  = 'afterExecute';
+
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -241,11 +257,33 @@ class Connection extends Component implements BootstrapInterface
 
 
     /**
+     * Defines the amqp interop transport
+     *
+     * @var string
+     */
+    public $driver = self::ENQUEUE_AMQP_LIB;
+
+
+    /**
      * Max attempts to requeue message
      *
      * @var int
      */
     public $maxAttempts = 1;
+
+    /**
+     * Default message priority
+     *
+     * @var int|null
+     */
+    public $priority = null;
+
+    /**
+     * Default message time to live
+     *
+     * @var float|int|null
+     */
+    public $ttl = null;
 
 
     /**
@@ -424,7 +462,7 @@ class Connection extends Component implements BootstrapInterface
     public function open()
     {
         if ($this->_context) {
-            $this->close();
+            return;
         }
 
         $config = [
@@ -458,9 +496,29 @@ class Connection extends Component implements BootstrapInterface
             return null !== $value;
         });
 
-        $factory = new AmqpConnectionFactory($config);
+        switch ($this->driver) {
+            case self::ENQUEUE_AMQP_LIB: {
+                $connectionClass = AmqpLibConnectionFactory::class;
+            } break;
+            case self::ENQUEUE_AMQP_EXT: {
+                $connectionClass = AmqpExtConnectionFactory::class;
+            } break;
+            case self::ENQUEUE_AMQP_BUNNY: {
+                $connectionClass = AmqpBunnyConnectionFactory::class;
+            } break;
+            default: {
+                throw new InvalidConfigException('Invalid driver');
+            }
+        }
+
+        /** @var AmqpConnectionFactory $factory */
+        $factory = new $connectionClass($config);
 
         $this->_context = $factory->createContext();
+
+        if ($this->_context instanceof DelayStrategyAware) {
+            $this->_context->setDelayStrategy(new RabbitMqDlxDelayStrategy());
+        }
 
         $this->setup();
     }
@@ -561,10 +619,6 @@ class Connection extends Component implements BootstrapInterface
         $message->setTimestamp(time());
         $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
 
-        if ($job instanceof PriorityJob) {
-            $message->setPriority($job->priority());
-        }
-
         $message->setProperty(self::PROPERTY_ATTEMPT, 1);
 
         $jobName = array_search(get_class($job), $this->jobNames);
@@ -606,12 +660,7 @@ class Connection extends Component implements BootstrapInterface
         $message->setReplyTo($queue->getQueueName());
         $message->setCorrelationId(uniqid('', true));
 
-        $this->beforeSend($target, $job, $message);
-
-        $producer = $this->_context->createProducer();
-        $producer->send($target, $message);
-
-        $this->afterSend($target, $job, $message);
+        $this->sendMessage($target, $job, $message);
 
         $consumer = $this->_context->createConsumer($queue);
 
@@ -661,12 +710,7 @@ class Connection extends Component implements BootstrapInterface
     {
         $message = $this->createMessage($job);
 
-        $this->beforeSend($target, $job, $message);
-
-        $producer = $this->_context->createProducer();
-        $producer->send($target, $message);
-
-        $this->afterSend($target, $job, $message);
+        $this->sendMessage($target, $job, $message);
 
         return true;
     }
@@ -872,6 +916,47 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @param PsrDestination $target
+     * @param BaseJob        $job
+     * @param AmqpMessage    $message
+     *
+     * @throws
+     */
+    protected function sendMessage(PsrDestination $target, BaseJob $job, AmqpMessage $message)
+    {
+        $producer = $this->_context->createProducer();
+
+        if (($job instanceof PriorityJob) && (($priority = $job->getPriority()) !== null)) {
+            $message->setPriority($priority);
+            $producer->setPriority($priority);
+        }
+        elseif ($this->priority !== null) {
+            $message->setPriority($this->priority);
+            $producer->setPriority($this->priority);
+        }
+
+        if (($job instanceof ExpiredJob) && (($ttl = $job->getTtl()) !== null)) {
+            $message->setProperty(self::PROPERTY_TTL, $ttl);
+            $producer->setTimeToLive($ttl);
+        }
+        elseif ($this->ttl !== null) {
+            $message->setProperty(self::PROPERTY_TTL, $this->ttl);
+            $producer->setTimeToLive($this->ttl);
+        }
+
+        if (($job instanceof DelayedJob) && (($delay = $job->getDelay()) !== null)) {
+            $message->setProperty(self::PROPERTY_DELAY, $delay);
+            $producer->setDeliveryDelay($delay * 1000);
+        }
+
+        $this->beforeSend($target, $job, $message);
+
+        $producer->send($target, $message);
+
+        $this->afterSend($target, $job, $message);
+    }
+
+    /**
      * @param BaseJob               $job
      * @param AmqpMessage           $message
      * @param AmqpConsumer          $consumer
@@ -898,8 +983,7 @@ class Connection extends Component implements BootstrapInterface
 
         $newMessage->setProperty(self::PROPERTY_ATTEMPT, ++$attempt);
 
-        $produces = $this->_context->createProducer();
-        $produces->send($consumer->getQueue(), $newMessage);
+        $this->sendMessage($consumer->getQueue(), $job, $newMessage);
 
         return true;
     }
