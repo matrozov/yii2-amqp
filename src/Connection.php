@@ -44,6 +44,7 @@ use yii\console\Application as ConsoleApp;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
+use yii\log\Logger;
 
 /**
  * Class Connection
@@ -792,8 +793,7 @@ class Connection extends Component implements BootstrapInterface
                 $consumer->acknowledge($message);
             }
             else {
-                $responseJob = new RpcExceptionResponseJob();
-                $responseJob->fillByException($e);
+                $responseJob = new RpcExceptionResponseJob($e);
 
                 $this->replyRpcMessage($message, $responseJob);
 
@@ -801,6 +801,8 @@ class Connection extends Component implements BootstrapInterface
             }
 
             if ($e instanceof SilentJobException) {
+                Yii::$app->getErrorHandler()->logException($e);
+
                 return;
             }
             else {
@@ -836,6 +838,8 @@ class Connection extends Component implements BootstrapInterface
             }
 
             if ($e instanceof SilentJobException) {
+                Yii::$app->getErrorHandler()->logException($e);
+
                 return;
             }
             else {
