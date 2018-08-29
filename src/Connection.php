@@ -44,7 +44,6 @@ use yii\console\Application as ConsoleApp;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
-use yii\log\Logger;
 
 /**
  * Class Connection
@@ -76,6 +75,8 @@ use yii\log\Logger;
  * @property string|null    $sslKey
  *
  * @property string         $driver
+ *
+ * @property bool           $breakListenerOnError
  *
  * @property int            $maxAttempts
  * @property int|null       $priority
@@ -265,6 +266,13 @@ class Connection extends Component implements BootstrapInterface
      * @var string
      */
     public $driver = self::ENQUEUE_AMQP_LIB;
+
+    /**
+     * Break listener on error
+     *
+     * @var bool
+     */
+    public $breakListenerOnError = false;
 
 
     /**
@@ -793,7 +801,8 @@ class Connection extends Component implements BootstrapInterface
                 $consumer->acknowledge($message);
             }
             else {
-                $responseJob = new RpcExceptionResponseJob($e);
+                $responseJob = new RpcExceptionResponseJob();
+                $responseJob->fillByException($e);
 
                 $this->replyRpcMessage($message, $responseJob);
 
@@ -912,7 +921,16 @@ class Connection extends Component implements BootstrapInterface
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
 
             $this->_context->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
-                $this->handleMessage($message, $consumer);
+                try {
+                    $this->handleMessage($message, $consumer);
+                }
+                catch (\Exception $e) {
+                    if ($this->breakListenerOnError) {
+                        throw $e;
+                    }
+
+                    Yii::$app->getErrorHandler()->logException($e);
+                }
 
                 return true;
             });

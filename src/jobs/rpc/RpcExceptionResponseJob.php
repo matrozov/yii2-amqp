@@ -22,11 +22,9 @@ class RpcExceptionResponseJob implements RpcResponseJob
     public $statusCode    = 500;
 
     /**
-     * RpcExceptionResponseJob constructor.
-     *
      * @param \Exception $e
      */
-    public function __construct(\Exception $e)
+    public function fillByException(\Exception $e)
     {
         $this->code    = $e->getCode();
         $this->message = $e->getMessage();
