@@ -662,7 +662,17 @@ class Connection extends Component implements BootstrapInterface
     {
         $message = $this->createMessage($job);
 
-        $queue = $this->_context->createQueue(uniqid('', true));
+        if ($target instanceof AmqpTopic) {
+            $exchangeName = $target->getTopicName();
+        }
+        elseif ($target instanceof AmqpQueue) {
+            $exchangeName = $target->getQueueName();
+        }
+        else {
+            $exchangeName = $job::exchangeName();
+        }
+
+        $queue = $this->_context->createQueue(uniqid($exchangeName . '_rpc_callback_'));
         $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
         $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
@@ -689,6 +699,8 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $consumer->acknowledge($responseMessage);
+            
+            $this->_context->unsubscribe($consumer);
 
             $responseJob = $this->serializer->deserialize($responseMessage->getBody());
 
@@ -706,6 +718,8 @@ class Connection extends Component implements BootstrapInterface
 
             return $responseJob;
         }
+
+        $this->_context->unsubscribe($consumer);
 
         return null;
     }
