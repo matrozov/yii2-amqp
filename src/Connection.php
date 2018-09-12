@@ -362,7 +362,7 @@ class Connection extends Component implements BootstrapInterface
      *
      * @var int
      */
-    public $rpcTimeout = 5000;
+    public $rpcTimeout = 30000;
 
     /**
      * @var Serializer
@@ -658,7 +658,7 @@ class Connection extends Component implements BootstrapInterface
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    protected function internalRpcSend(PsrDestination $target, RpcRequestJob $job)
+    protected function sendRpcMessage(PsrDestination $target, RpcRequestJob $job)
     {
         $message = $this->createMessage($job);
 
@@ -676,6 +676,7 @@ class Connection extends Component implements BootstrapInterface
         $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
         $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
+        $queue->setArgument('x-expires', $this->rpcTimeout * 2);
         $this->_context->declareQueue($queue);
 
         $message->setReplyTo($queue->getQueueName());
@@ -731,7 +732,7 @@ class Connection extends Component implements BootstrapInterface
      * @return bool
      * @throws
      */
-    protected function internalSimpleSend(PsrDestination $target, BaseJob $job)
+    protected function sendSimpleMessage(PsrDestination $target, BaseJob $job)
     {
         $message = $this->createMessage($job);
 
@@ -762,10 +763,10 @@ class Connection extends Component implements BootstrapInterface
         $exchange = $this->_exchanges[$exchangeName];
 
         if ($job instanceof RpcRequestJob) {
-            return $this->internalRpcSend($exchange, $job);
+            return $this->sendRpcMessage($exchange, $job);
         }
         else {
-            return $this->internalSimpleSend($exchange, $job);
+            return $this->sendSimpleMessage($exchange, $job);
         }
     }
 
@@ -781,7 +782,7 @@ class Connection extends Component implements BootstrapInterface
 
         $queue = $this->_context->createQueue($queueName);
 
-        return $this->internalSimpleSend($queue, $responseJob);
+        return $this->sendSimpleMessage($queue, $responseJob);
     }
 
     /**
