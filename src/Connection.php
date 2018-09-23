@@ -672,7 +672,7 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue(uniqid($exchangeName . '_rpc_callback_'));
+        $queue = $this->_context->createQueue(uniqid($exchangeName . '_rpc_callback_', true));
         $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
         $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
