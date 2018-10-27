@@ -18,13 +18,13 @@ trait ModelExecuteJobTrait
         $response = new ModelResponseJob();
 
         /* @var ModelExecuteJob $this */
-        if ($this->validate()) {
+        $response->success = $this->validate();
+
+        if ($response->success) {
             /* @var ModelExecuteJob $this */
             $response->result = $this->executeModel($connection, $message);
         }
 
-        /* @var ModelExecuteJob $this */
-        $response->success = !$this->hasErrors();
         /* @var ModelExecuteJob $this */
         $response->errors  = $this->getErrors();
 

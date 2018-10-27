@@ -20,6 +20,7 @@ use matrozov\yii2amqp\events\SendEvent;
 use matrozov\yii2amqp\jobs\BaseJob;
 use matrozov\yii2amqp\jobs\DelayedJob;
 use matrozov\yii2amqp\jobs\ExpiredJob;
+use matrozov\yii2amqp\jobs\PersistentJob;
 use matrozov\yii2amqp\jobs\PriorityJob;
 use matrozov\yii2amqp\jobs\RequestNamedJob;
 use matrozov\yii2amqp\jobs\RetryableJob;
@@ -99,8 +100,6 @@ use yii\helpers\Inflector;
 class Connection extends Component implements BootstrapInterface
 {
     const PROPERTY_ATTEMPT  = 'amqp-attempt';
-    const PROPERTY_DELAY    = 'amqp-delay';
-    const PROPERTY_TTL      = 'amqp-ttl';
     const PROPERTY_JOB_NAME = 'amqp-job-name';
 
     const ENQUEUE_AMQP_LIB   = 'enqueue/amqp-lib';
@@ -628,7 +627,7 @@ class Connection extends Component implements BootstrapInterface
 
         $message->setMessageId(uniqid('', true));
         $message->setTimestamp(time());
-        $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
+
 
         $message->setProperty(self::PROPERTY_ATTEMPT, 1);
 
@@ -903,7 +902,12 @@ class Connection extends Component implements BootstrapInterface
         if (!($job instanceof ExecuteJob)) {
             $consumer->reject($message, false);
 
-            throw new ErrorException('Can\'t execute unknown job type');
+            if (is_object($job)) {
+                throw new ErrorException('Can\'t execute unknown job type: ' . get_class($job));
+            }
+            else {
+                throw new ErrorException('Can\'t execute unknown message: ' . gettype($job));
+            }
         }
 
         if ($job instanceof RpcExecuteJob) {
@@ -965,26 +969,31 @@ class Connection extends Component implements BootstrapInterface
     {
         $producer = $this->_context->createProducer();
 
-        if (($job instanceof PriorityJob) && (($priority = $job->getPriority()) !== null)) {
-            $message->setPriority($priority);
-            $producer->setPriority($priority);
-        }
-        elseif ($this->priority !== null) {
-            $message->setPriority($this->priority);
-            $producer->setPriority($this->priority);
+        if ($message->getDeliveryMode() === null) {
+            if ($job instanceof PersistentJob) {
+                $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
+            }
         }
 
-        if (($job instanceof ExpiredJob) && (($ttl = $job->getTtl()) !== null)) {
-            $message->setProperty(self::PROPERTY_TTL, $ttl);
-            $producer->setTimeToLive($ttl);
+        if ($message->getPriority() === null) {
+            if (($job instanceof PriorityJob) && (($priority = $job->getPriority()) !== null)) {
+                $message->setPriority($priority);
+            }
+            elseif ($this->priority !== null) {
+                $message->setPriority($this->priority);
+            }
         }
-        elseif ($this->ttl !== null) {
-            $message->setProperty(self::PROPERTY_TTL, $this->ttl);
-            $producer->setTimeToLive($this->ttl);
+
+        if ($message->getExpiration() === null) {
+            if (($job instanceof ExpiredJob) && (($ttl = $job->getTtl()) !== null)) {
+                $message->setExpiration($ttl);
+            }
+            elseif ($this->ttl !== null) {
+                $message->setExpiration($this->ttl);
+            }
         }
 
         if (($job instanceof DelayedJob) && (($delay = $job->getDelay()) !== null)) {
-            $message->setProperty(self::PROPERTY_DELAY, $delay);
             $producer->setDeliveryDelay($delay * 1000);
         }
 
