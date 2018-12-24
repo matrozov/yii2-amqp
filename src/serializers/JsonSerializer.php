@@ -132,7 +132,7 @@ class JsonSerializer implements Serializer
 
         unset($result['class'], $result['scenario']);
 
-        if (!$model->load($result, '')) {
+        if (!empty($result) && !$model->load($result, '')) {
             throw new ErrorException('Can\'t load model params');
         }
 
