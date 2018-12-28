@@ -798,17 +798,17 @@ class Connection extends Component implements BootstrapInterface
 
             $responseJob = $job->execute($this, $message);
 
-            $this->afterExecute($job, $responseJob, $message, $consumer);
+            if (!($responseJob instanceof RpcResponseJob)) {
+                throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
+            }
 
             if (!$responseJob) {
                 $responseJob = new RpcFalseResponseJob();
             }
 
-            if (!($responseJob instanceof RpcResponseJob)) {
-                throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
-            }
-
             $this->replyRpcMessage($message, $responseJob);
+
+            $this->afterExecute($job, $responseJob, $message, $consumer);
         }
         catch (\Exception $e) {
             if ($this->redelivery($job, $message, $consumer, $e)) {
