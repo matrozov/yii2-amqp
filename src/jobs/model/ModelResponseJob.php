@@ -6,10 +6,12 @@ use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 /**
  * Class ModelResponseJob
  * @package matrozov\yii2amqp\jobs\model
+ *
+ * @property mixed $result
+ * @property array $errors
  */
 class ModelResponseJob implements RpcResponseJob
 {
-    public $success = false;
-    public $result  = null;
-    public $errors  = [];
+    public $result = null;
+    public $errors = [];
 }

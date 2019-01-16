@@ -21,10 +21,6 @@ trait SaveModelRequestJobTrait
      */
     public function save(Connection $connection = null)
     {
-        if (!$this->beforeModelRequest()) {
-            return false;
-        }
-
         $response = $this->send($connection);
 
         /* @var ModelResponseJob $response */
@@ -37,6 +33,6 @@ trait SaveModelRequestJobTrait
             $this->setAttributes($response->result, false);
         }
 
-        return $response->success;
+        return $response->result !== false;
     }
 }

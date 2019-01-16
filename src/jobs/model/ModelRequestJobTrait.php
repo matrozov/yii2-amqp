@@ -2,7 +2,6 @@
 namespace matrozov\yii2amqp\jobs\model;
 
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\jobs\rpc\RpcRequestJobTrait;
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 
 /**
@@ -11,18 +10,6 @@ use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
  */
 trait ModelRequestJobTrait
 {
-    /**
-     * @return bool
-     */
-    public function beforeModelRequest()
-    {
-        /* @var ModelRequestJob $this */
-        $this->clearErrors();
-
-        /* @var ModelRequestJob $this */
-        return $this->validate();
-    }
-
     /**
      * @param Connection|null $connection
      *
@@ -48,11 +35,13 @@ trait ModelRequestJobTrait
             return false;
         }
 
-        if (!empty($response->errors)) {
+        if (($response->result !== false) || !empty($response->errors)) {
             /* @var ModelRequestJob $this */
             $this->addErrors($response->errors);
+
+            return false;
         }
 
-        return $response->success;
+        return true;
     }
 }

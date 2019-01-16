@@ -18,15 +18,9 @@ trait ModelExecuteJobTrait
         $response = new ModelResponseJob();
 
         /* @var ModelExecuteJob $this */
-        $response->success = $this->validate();
-
-        if ($response->success) {
-            /* @var ModelExecuteJob $this */
-            $response->result = $this->executeModel($connection, $message);
-        }
-
+        $response->result = $this->executeModel($connection, $message);
         /* @var ModelExecuteJob $this */
-        $response->errors  = $this->getErrors();
+        $response->errors = $this->getErrors();
 
         return $response;
     }

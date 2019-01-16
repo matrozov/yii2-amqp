@@ -1,7 +1,6 @@
 <?php
 namespace matrozov\yii2amqp\jobs\simple;
 
-use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\BaseJob;
 
 /**

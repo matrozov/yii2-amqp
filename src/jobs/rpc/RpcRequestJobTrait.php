@@ -2,7 +2,6 @@
 namespace matrozov\yii2amqp\jobs\rpc;
 
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\jobs\simple\RequestJobTrait;
 use yii\base\ErrorException;
 
 /**

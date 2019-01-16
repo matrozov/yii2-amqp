@@ -22,10 +22,6 @@ trait FindOneModelRequestJobTrait
      */
     public function findOne(Connection $connection = null)
     {
-        if (!$this->beforeModelRequest()) {
-            return false;
-        }
-
         $response = $this->send($connection);
 
         /* @var ModelResponseJob $response */
