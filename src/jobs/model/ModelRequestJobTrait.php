@@ -35,7 +35,7 @@ trait ModelRequestJobTrait
             return false;
         }
 
-        if (($response->result !== false) || !empty($response->errors)) {
+        if (($response->result === false) || !empty($response->errors)) {
             /* @var ModelRequestJob $this */
             $this->addErrors($response->errors);
 
