@@ -26,6 +26,10 @@ trait DeleteAllModelExecuteJobTrait
         /* @var DeleteAllModelExecuteJob $this */
         $result = $this->executeDeleteAll($connection, $message);
 
+        if ($result === false) {
+            return false;
+        }
+
         if (!is_int($result)) {
             throw new ErrorException('Result must be integer!');
         }

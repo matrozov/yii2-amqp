@@ -26,6 +26,10 @@ trait DeleteModelExecuteJobTrait
         /* @var DeleteModelExecuteJob $this */
         $result = $this->executeDelete($connection, $message);
 
+        if ($result === false) {
+            return false;
+        }
+
         if (!is_bool($result) && !is_int($result)) {
             throw new ErrorException('Result must be boolean or integer!');
         }

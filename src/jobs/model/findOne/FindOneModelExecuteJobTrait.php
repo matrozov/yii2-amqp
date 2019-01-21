@@ -26,6 +26,10 @@ trait FindOneModelExecuteJobTrait
         /* @var FindOneModelExecuteJob $this */
         $result = $this->executeFindOne($connection, $message);
 
+        if ($result === false) {
+            return false;
+        }
+
         if (!is_null($result) && !is_array($result) && !is_object($result)) {
             throw new ErrorException('Result must be array or object!');
         }

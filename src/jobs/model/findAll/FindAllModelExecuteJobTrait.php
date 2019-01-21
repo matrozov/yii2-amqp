@@ -26,6 +26,10 @@ trait FindAllModelExecuteJobTrait
         /* @var FindAllModelExecuteJob $this */
         $result = $this->executeFindAll($connection, $message);
 
+        if ($result === false) {
+            return false;
+        }
+
         if (!is_array($result)) {
             throw new ErrorException('Result must be array!');
         }

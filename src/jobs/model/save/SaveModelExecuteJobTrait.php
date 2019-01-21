@@ -26,6 +26,10 @@ trait SaveModelExecuteJobTrait
         /* @var SaveModelExecuteJob $this */
         $result = $this->executeSave($connection, $message);
 
+        if ($result === false) {
+            return false;
+        }
+
         if (!is_array($result) && !is_bool($result)) {
             throw new ErrorException('Result must be array or boolean!');
         }
