@@ -45,6 +45,8 @@ use yii\console\Application as ConsoleApp;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
+use yii\helpers\Json;
+use yii\web\Response;
 
 /**
  * Class Connection
@@ -368,6 +370,7 @@ class Connection extends Component implements BootstrapInterface
      */
     public $serializer = JsonSerializer::class;
 
+
     /**
      * @var AmqpContext
      */
@@ -387,11 +390,21 @@ class Connection extends Component implements BootstrapInterface
      */
     protected $_exchanges = [];
 
+    /**
+     * @var array $_trace
+     * @var array $_traceItem
+     * @var float $_traceStart
+     */
+    protected $_trace      = [];
+    protected $_traceItem  = [];
+    protected $_traceStart = 0;
+
 
     /**
      * @var Connection
      */
     protected static $_instance;
+
 
     /**
      * @inheritdoc
@@ -400,6 +413,10 @@ class Connection extends Component implements BootstrapInterface
     public function init()
     {
         parent::init();
+
+        if (!defined('YII_TRACE_AMQP')) {
+            define('YII_TRACE_AMQP', false);
+        }
 
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
@@ -699,8 +716,18 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $consumer->acknowledge($responseMessage);
-            
+
             $this->_context->unsubscribe($consumer);
+
+            if (YII_TRACE_AMQP) {
+                // Catch rpc subtrace
+
+                $childTrace = $responseMessage->getProperty('_trace');
+
+                if (is_array($childTrace)) {
+                    $this->_traceItem['child'] = Json::decode($childTrace);
+                }
+            }
 
             $responseJob = $this->serializer->deserialize($responseMessage->getBody());
 
@@ -761,12 +788,46 @@ class Connection extends Component implements BootstrapInterface
 
         $exchange = $this->_exchanges[$exchangeName];
 
+        if (YII_TRACE_AMQP) {
+            // Trace SEND start
+
+            $this->_traceItem = [
+                'app' => Yii::$app->id,
+                'job' => get_class($job),
+            ];
+
+            $this->_traceStart = microtime(true);
+
+            if ($job instanceof RequestNamedJob) {
+                $this->_traceItem['jobName'] = $job::jobName();
+            }
+
+            if ($job instanceof RpcRequestJob) {
+                $this->_traceItem['rpc'] = true;
+            }
+        }
+
         if ($job instanceof RpcRequestJob) {
-            return $this->sendRpcMessage($exchange, $job);
+            $result = $this->sendRpcMessage($exchange, $job);
         }
         else {
-            return $this->sendSimpleMessage($exchange, $job);
+            $result = $this->sendSimpleMessage($exchange, $job);
         }
+
+        if (YII_TRACE_AMQP) {
+            // Trace SEND stop
+
+            $this->_traceItem['time'] = microtime(true) - $this->_traceStart;
+            $this->_traceItem['res']  = $result;
+
+            $this->_trace[] = $this->_traceItem;
+
+            if (Yii::$app->response instanceof Response) {
+                Yii::$app->response->headers->set('yii2-amqp-trace', Json::encode($this->_trace));
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -998,6 +1059,14 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $this->beforeSend($target, $job, $message);
+
+        if (YII_TRACE_AMQP) {
+            // Response trace
+
+            if (($job instanceof RpcResponseJob) && !empty($this->_trace)) {
+                $message->setProperty('_trace', Json::encode($this->_trace));
+            }
+        }
 
         $producer->send($target, $message);
 
