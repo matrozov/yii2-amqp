@@ -449,7 +449,9 @@ class Connection extends Component implements BootstrapInterface
             $this->logFlush();
         });
 
-        Event::on(static::class, static::EVENT_AFTER_EXECUTE, [$this, 'logFlush']);
+        Event::on(static::class, static::EVENT_AFTER_EXECUTE, function () {
+            $this->logFlush();
+        });
 
         self::$_instance = $this;
     }
