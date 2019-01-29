@@ -359,11 +359,12 @@ class Connection extends Component implements BootstrapInterface
     ];
 
     /**
-     * Default wait rpc response timeout
+     * The time RPC Job waits for an response. In seconds.
+
      *
      * @var int
      */
-    public $rpcTimeout = 30000;
+    public $rpcTimeout = 30;
 
     /**
      * @var Serializer
@@ -692,7 +693,7 @@ class Connection extends Component implements BootstrapInterface
         $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
         $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
-        $queue->setArgument('x-expires', $this->rpcTimeout * 2);
+        $queue->setArgument('x-expires', $this->rpcTimeout * 1000 * 2);
         $this->_context->declareQueue($queue);
 
         $message->setReplyTo($queue->getQueueName());
@@ -703,7 +704,7 @@ class Connection extends Component implements BootstrapInterface
         $consumer = $this->_context->createConsumer($queue);
 
         while (true) {
-            $responseMessage = $consumer->receive($this->rpcTimeout);
+            $responseMessage = $consumer->receive($this->rpcTimeout * 1000);
 
             if (!$responseMessage) {
                 return null;
@@ -818,7 +819,7 @@ class Connection extends Component implements BootstrapInterface
             // Trace SEND stop
 
             $this->_traceItem['time'] = microtime(true) - $this->_traceStart;
-            $this->_traceItem['res']  = $result;
+            $this->_traceItem['res']  = $result !== false;
 
             $this->_trace[] = $this->_traceItem;
 
