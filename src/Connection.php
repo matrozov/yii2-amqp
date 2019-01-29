@@ -46,7 +46,7 @@ use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use yii\helpers\Json;
-use yii\web\Response;
+use yii\log\Logger;
 
 /**
  * Class Connection
@@ -98,11 +98,18 @@ use yii\web\Response;
  * @property int            $rpcTimeout
  *
  * @property Serializer     $serializer
+ *
+ * @property Logger         $log
+ * @property bool           $logRequestTrace
  */
 class Connection extends Component implements BootstrapInterface
 {
-    const PROPERTY_ATTEMPT  = 'amqp-attempt';
-    const PROPERTY_JOB_NAME = 'amqp-job-name';
+    const PROPERTY_ATTEMPT     = 'amqp-attempt';
+    const PROPERTY_JOB_NAME    = 'amqp-job-name';
+    const PROPERTY_TRACE       = 'amqp-trace';
+    const PROPERTY_TRACE_CHILD = 'amqp-request-trace';
+
+    const LOG_CATEGORY_PREFIX = 'amqp-';
 
     const ENQUEUE_AMQP_LIB   = 'enqueue/amqp-lib';
     const ENQUEUE_AMQP_EXT   = 'enqueue/amqp-ext';
@@ -371,6 +378,24 @@ class Connection extends Component implements BootstrapInterface
      */
     public $serializer = JsonSerializer::class;
 
+    /**
+     * @var Logger|array|string|null
+     */
+    public $log = 'log';
+
+    /**
+     * @var bool
+     */
+    public $logRequestTrace = false;
+
+    /**
+     * @var array $_trace
+     * @var array $_traceItem
+     * @var float $_traceStart
+     */
+    protected $_trace      = [];
+    protected $_traceItem  = [];
+    protected $_traceStart = 0;
 
     /**
      * @var AmqpContext
@@ -391,14 +416,6 @@ class Connection extends Component implements BootstrapInterface
      */
     protected $_exchanges = [];
 
-    /**
-     * @var array $_trace
-     * @var array $_traceItem
-     * @var float $_traceStart
-     */
-    protected $_trace      = [];
-    protected $_traceItem  = [];
-    protected $_traceStart = 0;
 
 
     /**
@@ -415,15 +432,19 @@ class Connection extends Component implements BootstrapInterface
     {
         parent::init();
 
-        if (!defined('YII_TRACE_AMQP')) {
-            define('YII_TRACE_AMQP', false);
-        }
-
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
+
+        if ($this->log) {
+            $this->log = Instance::ensure($this->log, Logger::class);
+        }
 
         Event::on(BaseApp::class, BaseApp::EVENT_AFTER_REQUEST, function () {
             $this->close();
+
+            $this->logFlush();
         });
+
+        Event::on(static::class, static::EVENT_AFTER_EXECUTE, [$this, 'logFlush']);
 
         self::$_instance = $this;
     }
@@ -720,14 +741,9 @@ class Connection extends Component implements BootstrapInterface
 
             $this->_context->unsubscribe($consumer);
 
-            if (YII_TRACE_AMQP) {
-                // Catch rpc subtrace
-
-                $childTrace = $responseMessage->getProperty('_trace');
-
-                if (is_array($childTrace)) {
-                    $this->_traceItem['child'] = Json::decode($childTrace);
-                }
+            // Catch rpc subtrace
+            if ($this->logRequestTrace && !empty($childTrace = $responseMessage->getProperty(self::PROPERTY_TRACE))) {
+                $this->_traceItem['child'] = Json::decode($childTrace);
             }
 
             $responseJob = $this->serializer->deserialize($responseMessage->getBody());
@@ -789,7 +805,7 @@ class Connection extends Component implements BootstrapInterface
 
         $exchange = $this->_exchanges[$exchangeName];
 
-        if (YII_TRACE_AMQP) {
+        if ($this->logRequestTrace) {
             // Trace SEND start
 
             $this->_traceItem = [
@@ -815,17 +831,13 @@ class Connection extends Component implements BootstrapInterface
             $result = $this->sendSimpleMessage($exchange, $job);
         }
 
-        if (YII_TRACE_AMQP) {
+        if ($this->logRequestTrace) {
             // Trace SEND stop
 
             $this->_traceItem['time'] = microtime(true) - $this->_traceStart;
             $this->_traceItem['res']  = $result !== false;
 
             $this->_trace[] = $this->_traceItem;
-
-            if (Yii::$app->response instanceof Response) {
-                Yii::$app->response->headers->set('yii2-amqp-trace', Json::encode($this->_trace));
-            }
         }
 
         return $result;
@@ -855,6 +867,10 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleRpcMessage(RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
+        $oldLogRequestTrace = $this->logRequestTrace;
+
+        $this->logRequestTrace = $this->logRequestTrace || $message->getProperty(self::PROPERTY_TRACE_CHILD, false);
+
         try {
             $this->beforeExecute($job, null, $message, $consumer);
 
@@ -894,6 +910,8 @@ class Connection extends Component implements BootstrapInterface
                 throw $e;
             }
         }
+
+        $this->logRequestTrace = $oldLogRequestTrace;
 
         $consumer->acknowledge($message);
     }
@@ -1061,11 +1079,13 @@ class Connection extends Component implements BootstrapInterface
 
         $this->beforeSend($target, $job, $message);
 
-        if (YII_TRACE_AMQP) {
-            // Response trace
+        if ($this->logRequestTrace) {
+            if ($job instanceof RpcRequestJob) {
+                $message->setProperty(self::PROPERTY_TRACE_CHILD, true);
+            }
 
             if (($job instanceof RpcResponseJob) && !empty($this->_trace)) {
-                $message->setProperty('_trace', Json::encode($this->_trace));
+                $message->setProperty(self::PROPERTY_TRACE, Json::encode($this->_trace));
             }
         }
 
@@ -1208,5 +1228,39 @@ class Connection extends Component implements BootstrapInterface
             /* @var Component $requestJob */
             $requestJob->trigger(static::EVENT_AFTER_EXECUTE, $event);
         }
+    }
+
+    protected function logTrace()
+    {
+        $this->log($this->_trace, Logger::LEVEL_INFO, 'request-trace');
+
+        $this->_trace = [];
+    }
+
+    /**
+     * @param string|array $message
+     * @param int          $level
+     * @param string       $category
+     */
+    protected function log($message, $level, $category)
+    {
+        if (!$this->log) {
+            return;
+        }
+
+        $this->log->log($message, $level, self::LOG_CATEGORY_PREFIX . $category);
+    }
+
+    protected function logFlush()
+    {
+        if (!$this->log) {
+            return;
+        }
+
+        if ($this->logRequestTrace && !empty($this->_trace)) {
+            $this->logTrace();
+        }
+
+        $this->log->flush(true);
     }
 }
