@@ -436,8 +436,8 @@ class Connection extends Component implements BootstrapInterface
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
         if ($this->log) {
-            if (is_array($this->log) || !isset($this->log['logger'])) {
-                $this->log['logger'] = Instance::ensure($this->log['logger'], Logger::class);
+            if (is_array($this->log) && !isset($this->log['logger'])) {
+                $this->log['logger'] = Yii::createObject(Logger::class);
             }
 
             $this->log = Instance::ensure($this->log, Dispatcher::class);
