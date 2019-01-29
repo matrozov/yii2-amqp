@@ -46,6 +46,7 @@ use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use yii\helpers\Json;
+use yii\log\Dispatcher;
 use yii\log\Logger;
 
 /**
@@ -99,7 +100,7 @@ use yii\log\Logger;
  *
  * @property Serializer     $serializer
  *
- * @property Logger         $log
+ * @property Dispatcher     $log
  * @property bool           $logRequestTrace
  */
 class Connection extends Component implements BootstrapInterface
@@ -379,7 +380,7 @@ class Connection extends Component implements BootstrapInterface
     public $serializer = JsonSerializer::class;
 
     /**
-     * @var Logger|array|string|null
+     * @var Dispatcher|array|string|null
      */
     public $log = 'log';
 
@@ -435,7 +436,11 @@ class Connection extends Component implements BootstrapInterface
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
         if ($this->log) {
-            $this->log = Instance::ensure($this->log, Logger::class);
+            if (is_array($this->log) || !isset($this->log['logger'])) {
+                $this->log['logger'] = Instance::ensure($this->log['logger'], Logger::class);
+            }
+
+            $this->log = Instance::ensure($this->log, Dispatcher::class);
         }
 
         Event::on(BaseApp::class, BaseApp::EVENT_AFTER_REQUEST, function () {
@@ -1248,7 +1253,7 @@ class Connection extends Component implements BootstrapInterface
             return;
         }
 
-        $this->log->log($message, $level, self::LOG_CATEGORY_PREFIX . $category);
+        $this->log->logger->log($message, $level, self::LOG_CATEGORY_PREFIX . $category);
     }
 
     protected function logFlush()
@@ -1261,6 +1266,6 @@ class Connection extends Component implements BootstrapInterface
             $this->logTrace();
         }
 
-        $this->log->flush(true);
+        $this->log->logger->flush(true);
     }
 }
