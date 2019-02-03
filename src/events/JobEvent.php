@@ -1,4 +1,5 @@
 <?php
+
 namespace matrozov\yii2amqp\events;
 
 use matrozov\yii2amqp\jobs\BaseJob;

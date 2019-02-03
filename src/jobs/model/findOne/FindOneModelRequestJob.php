@@ -1,4 +1,5 @@
 <?php
+
 namespace matrozov\yii2amqp\jobs\model\findOne;
 
 use matrozov\yii2amqp\jobs\model\ModelRequestJob;

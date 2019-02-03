@@ -13,8 +13,8 @@
 ```php
 class MyRpcRequestJob implements RpcRequestJob, RpcExecuteJob
 {
-    use BaseJobTrait;
     use RpcRequestJobTrait;
+    use RpcExecutejobTrait;
     
     public $title;
     
@@ -23,7 +23,7 @@ class MyRpcRequestJob implements RpcRequestJob, RpcExecuteJob
         return 'test-exchange';
     }
     
-    public function execute()
+    public function executeRpc()
     {
         $job = MyRpcResponseJob();
         $job->title = 'Hello ' . $this->title;

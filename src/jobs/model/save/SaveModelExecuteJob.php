@@ -1,4 +1,5 @@
 <?php
+
 namespace matrozov\yii2amqp\jobs\model\save;
 
 use Interop\Amqp\AmqpMessage;

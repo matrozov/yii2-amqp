@@ -1,4 +1,5 @@
 <?php
+
 namespace matrozov\yii2amqp\jobs\model\findAll;
 
 use Interop\Amqp\AmqpMessage;

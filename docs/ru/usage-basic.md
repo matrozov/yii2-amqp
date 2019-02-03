@@ -10,8 +10,8 @@
 ```php
 class MyJob implements RequestJob, ExecuteJob
 {
-    use BaseJobTrait;
     use RequestJobTrait;
+    use ExecuteJobTrait;
 
     public $title;
     

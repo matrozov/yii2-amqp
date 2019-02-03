@@ -1,4 +1,5 @@
 <?php
+
 namespace matrozov\yii2amqp\jobs\model\delete;
 
 use matrozov\yii2amqp\Connection;

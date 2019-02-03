@@ -1,49 +1,51 @@
 <?php
+
 namespace matrozov\yii2amqp\jobs\rpc;
 
+use Exception;
 use yii\web\HttpException;
 
 /**
  * Class RpcExceptionResponseJob
  * @package matrozov\yii2amqp\jobs\rpc
  *
- * @property integer $code
- * @property string  $message
+ * @property string $className
  *
- * @property boolean $httpException
- * @property integer $statusCode
+ * @property int    $statusCode
+ * @property string $message
+ * @property int    $code
  */
 class RpcExceptionResponseJob implements RpcResponseJob
 {
-    public $code;
+    public $className;
+
+    public $statusCode;
     public $message;
+    public $code;
 
-    public $httpException = false;
-    public $statusCode    = 500;
-
-    /**
-     * @param \Exception $e
-     */
-    public function fillByException(\Exception $e)
+    public function __construct(Exception $exception = null)
     {
-        $this->code    = $e->getCode();
-        $this->message = $e->getMessage();
+        if ($exception) {
+            $this->className = get_class($exception);
 
-        if ($e instanceof HttpException) {
-            $this->httpException = true;
-            $this->statusCode    = $e->statusCode;
+            $this->message = $exception->getMessage();
+            $this->code    = $exception->getCode();
+
+            if ($exception instanceof HttpException) {
+                $this->statusCode = $exception->statusCode;
+            }
         }
     }
 
     /**
-     * @return \Exception
+     * @return HttpException|Exception
      */
     public function exception()
     {
-        if ($this->httpException) {
+        if ($this->className instanceof HttpException) {
             return new HttpException($this->statusCode, $this->message, $this->code);
         }
 
-        return new \Exception($this->message, $this->code);
+        return new Exception($this->message, $this->code);
     }
 }
