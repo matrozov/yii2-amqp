@@ -17,7 +17,7 @@ class Command extends Controller
     public $connection;
 
     /* @var int $timeout */
-    public $timeout = 0;
+    public $timeout;
 
     /**
      * @inheritdoc

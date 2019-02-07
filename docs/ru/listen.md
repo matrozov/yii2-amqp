@@ -15,5 +15,5 @@ php yii amqp/listen test-queue test-queue-2
 
 Так же вы можете указать лимит времени ожидания сообщений в очереди:
 ```bash
-php yii amqp/listen -t=1000
+php yii amqp/listen -t=1
 ```

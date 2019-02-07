@@ -7,6 +7,7 @@ use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
 use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
+use Exception;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpContext;
@@ -906,46 +907,79 @@ class Connection extends Component implements BootstrapInterface
 
         $this->debugRequestTrace = $this->debugRequestTrace || $message->getProperty(self::PROPERTY_TRACE_CHILD, false);
 
+        $exceptionInt = null;
+        $exceptionExt = null;
+
         try {
             $this->beforeExecute($job, null, $message, $consumer);
 
-            $responseJob = $job->execute($this, $message);
+            try {
+                $responseJob = $job->execute($this, $message);
 
-            if (!($responseJob instanceof RpcResponseJob)) {
-                throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
+                if (!($responseJob instanceof RpcResponseJob)) {
+                    throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
+                }
+
+                if (!$responseJob) {
+                    $responseJob = new RpcFalseResponseJob();
+                }
+
+                $this->replyRpcMessage($message, $responseJob);
             }
-
-            if (!$responseJob) {
-                $responseJob = new RpcFalseResponseJob();
+            catch (\Exception $exception) {
+                $exceptionInt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
             }
-
-            $this->replyRpcMessage($message, $responseJob);
 
             $this->afterExecute($job, $responseJob, $message, $consumer);
         }
         catch (\Exception $exception) {
+            if (!$exceptionInt) {
+                $exceptionExt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
+            }
+        }
+
+        if ($exceptionInt || $exceptionExt) {
+            throw $exceptionInt ? $exceptionInt : $exceptionExt;
+        }
+
+        $this->debugRequestTrace = $oldDebugRequestTrace;
+
+        $consumer->acknowledge($message);
+    }
+
+    /**
+     * @param \Exception    $exception
+     * @param RpcExecuteJob $job
+     * @param AmqpMessage   $message
+     * @param AmqpConsumer  $consumer
+     *
+     * @return \Exception|null
+     * @throws \Exception
+     */
+    protected function handleRpcMessageException(\Exception $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        if ((!($exception instanceof HttpException)) && (!($exception instanceof RpcTransferableException))) {
             if ($this->redelivery($job, $message, $consumer, $exception)) {
                 $consumer->acknowledge($message);
             }
             else {
-                if (($exception instanceof HttpException) || ($exception instanceof RpcTransferableException)) {
-                    $responseJob = new RpcExceptionResponseJob($exception);
-                }
-                else {
-                    $responseJob = new RpcFalseResponseJob();
-                }
+                $responseJob = new RpcFalseResponseJob();
 
                 $this->replyRpcMessage($message, $responseJob);
 
                 $consumer->reject($message, false);
             }
 
-            throw $exception;
+            return $exception;
         }
 
-        $this->debugRequestTrace = $oldDebugRequestTrace;
+        $responseJob = new RpcExceptionResponseJob($exception);
 
-        $consumer->acknowledge($message);
+        $this->replyRpcMessage($message, $responseJob);
+
+        Yii::$app->getErrorHandler()->logException($exception);
+
+        return null;
     }
 
     /**
@@ -1069,7 +1103,7 @@ class Connection extends Component implements BootstrapInterface
                 $timeout -= microtime(true) - $start;
             }
 
-            if (($timeout < 0) || ExitSignal::isExit()) {
+            if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
                 break;
             }
         }
