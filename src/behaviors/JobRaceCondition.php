@@ -5,6 +5,7 @@ namespace matrozov\yii2amqp\behaviors;
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\jobs\RequestNamedJob;
+use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use yii\base\Behavior;
 use yii\base\ErrorException;
 use yii\base\InvalidConfigException;
@@ -44,6 +45,19 @@ class JobRaceCondition extends Behavior
 
     /**
      * {@inheritdoc}
+     * @throws InvalidConfigException
+     */
+    public function attach($owner)
+    {
+        if (!($owner instanceof ExecuteJob)) {
+            throw new InvalidConfigException('You should attach behavior only instanceof ExecuteJob!');
+        }
+
+        parent::attach($owner);
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function events()
     {
@@ -62,7 +76,6 @@ class JobRaceCondition extends Behavior
 
         foreach ($this->attributes as $attribute) {
             if (!is_array($attribute)) {
-
                 foreach ($attr_lol as &$attr_list) {
                     $attr_list[] = $attribute;
                 }
@@ -107,7 +120,7 @@ class JobRaceCondition extends Behavior
             $hashes[$idx] = md5(implode('', $hashes[$idx]));
         }
 
-        return [];
+        return $hashes;
     }
 
     /**
