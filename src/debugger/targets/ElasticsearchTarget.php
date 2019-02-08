@@ -5,6 +5,7 @@ namespace matrozov\yii2amqp\debugger\targets;
 use yii\di\Instance;
 use yii\elasticsearch\Connection;
 use matrozov\yii2amqp\debugger\Target;
+use yii\helpers\Json;
 
 /**
  * Class ElasticsearchTarget
@@ -59,7 +60,12 @@ class ElasticsearchTarget extends Target
             }
         }
 
-        return $result;
+        return implode(PHP_EOL, [
+            Json::encode([
+                'index' => new \stdClass(),
+            ]),
+            Json::encode($result),
+        ]);
     }
 
     /**
