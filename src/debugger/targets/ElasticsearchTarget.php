@@ -86,6 +86,10 @@ class ElasticsearchTarget extends Target
      */
     public function flush()
     {
+        if (empty($this->_logs)) {
+            return;
+        }
+
         $logs    = array_map([$this, 'prepareLog'], $this->_logs);
         $content = implode(PHP_EOL, $logs) . PHP_EOL;
 

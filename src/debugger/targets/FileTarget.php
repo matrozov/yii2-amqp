@@ -80,6 +80,10 @@ class FileTarget extends Target
      */
     public function flush()
     {
+        if (empty($this->_logs)) {
+            return;
+        }
+
         $text = implode(PHP_EOL, array_map([$this, 'prepareLog'], $this->_logs)) . PHP_EOL;
 
         $logPath = dirname($this->logFile);
