@@ -23,7 +23,7 @@ class ExitSignal
         }
 
         foreach ([SIGTERM, SIGINT, SIGHUP] as $signal) {
-            pcntl_signal($signal, [__NAMESPACE__ . '\ExitSignal', 'setExitFlat']);
+            pcntl_signal($signal, [__NAMESPACE__ . '\ExitSignal', 'setExitFlag']);
         }
 
         static::$handled = true;
