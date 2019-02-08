@@ -47,6 +47,7 @@ use yii\base\Component;
 use yii\base\ErrorException;
 use yii\base\Event;
 use yii\base\InvalidConfigException;
+use yii\base\Request;
 use yii\console\Application as ConsoleApp;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
@@ -866,9 +867,9 @@ class Connection extends Component implements BootstrapInterface
             if ($this->debugRequestTime && (($this->debugRequestTimeMin === null) || ($this->_traceItem['time'] > $this->debugRequestTimeMin))) {
                 $item = $this->_traceItem;
 
-                if (isset($item['child'])) {
-                    $item['child'] = Json::encode($item['child']);
-                }
+                $item['json'] = Json::encode($item);
+
+                ArrayHelper::remove($item, 'child');
 
                 $this->debug('request-time', $item);
             }
@@ -1324,7 +1325,26 @@ class Connection extends Component implements BootstrapInterface
 
     protected function debugTrace()
     {
-        $this->debug('request-trace', $this->_trace);
+        $content = [
+            'trace' => Json::encode($this->_trace),
+        ];
+
+        if (Yii::$app->request instanceof \yii\web\Request) {
+            /** @var \yii\web\Request $request */
+            $request = Yii::$app->request;
+
+            $content = array_merge($content, [
+                'method' => $request->method,
+                'url'    => $request->absoluteUrl,
+            ]);
+        }
+        elseif (Yii::$app->request instanceof \yii\console\Request) {
+            $content = array_merge($content, [
+                'command' => implode(' ', $_SERVER['argv']),
+            ]);
+        }
+
+        $this->debug('request-trace', $content);
 
         $this->_trace = [];
     }
