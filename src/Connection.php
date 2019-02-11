@@ -35,7 +35,6 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
-use matrozov\yii2amqp\jobs\SilentJobException;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\simple\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
@@ -999,22 +998,19 @@ class Connection extends Component implements BootstrapInterface
 
             $this->afterExecute($job, null, $message, $consumer);
         }
-        catch (\Exception $e) {
-            if ($this->redelivery($job, $message, $consumer, $e)) {
-                $consumer->acknowledge($message);
-            }
-            else {
-                $consumer->reject($message, false);
+        catch (\Exception $exception) {
+            if (!($exception instanceof HttpException)) {
+                if ($this->redelivery($job, $message, $consumer, $exception)) {
+                    $consumer->acknowledge($message);
+                }
+                else {
+                    $consumer->reject($message, false);
+                }
+
+                throw $exception;
             }
 
-            if ($e instanceof SilentJobException) {
-                Yii::$app->getErrorHandler()->logException($e);
-
-                return;
-            }
-            else {
-                throw $e;
-            }
+            Yii::$app->getErrorHandler()->logException($exception);
         }
 
         $consumer->acknowledge($message);
