@@ -927,6 +927,8 @@ class Connection extends Component implements BootstrapInterface
                 $this->replyRpcMessage($message, $responseJob);
             }
             catch (\Exception $exception) {
+                $responseJob = null;
+
                 $exceptionInt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
             }
 

@@ -9,13 +9,13 @@ use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
  * Class ExecuteEvent
  * @package matrozov\yii2amqp\events
  *
- * @property RpcResponseJob $responseJob
- * @property AmqpConsumer   $consumer
+ * @property RpcResponseJob|null $responseJob
+ * @property AmqpConsumer        $consumer
  */
 class ExecuteEvent extends Event
 {
     /**
-     * @var RpcResponseJob
+     * @var RpcResponseJob|null
      */
     public $responseJob;
 
