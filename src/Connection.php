@@ -7,7 +7,6 @@ use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
 use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
-use Exception;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpContext;
@@ -46,7 +45,6 @@ use yii\base\Component;
 use yii\base\ErrorException;
 use yii\base\Event;
 use yii\base\InvalidConfigException;
-use yii\base\Request;
 use yii\console\Application as ConsoleApp;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
@@ -64,6 +62,8 @@ use yii\web\HttpException;
  * @property string|null    $user
  * @property string|null    $password
  * @property string|null    $vhost
+ *
+ * @property bool           $keepalive
  *
  * @property float|null     $readTimeout
  * @property float|null     $writeTimeout
@@ -167,6 +167,14 @@ class Connection extends Component implements BootstrapInterface
      * @var string|null
      */
     public $vhost;
+
+
+    /**
+     * Keepalive connection
+     *
+     * @var bool
+     */
+    public $keepalive = false;
 
 
     /**
@@ -535,6 +543,8 @@ class Connection extends Component implements BootstrapInterface
             'user'               => $this->user,
             'pass'               => $this->password,
             'vhost'              => $this->vhost,
+
+            'keepalive'          => $this->keepalive,
 
             'read_timeout'       => $this->readTimeout,
             'write_timeout'      => $this->writeTimeout,
@@ -1041,7 +1051,19 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
-        $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
+        try {
+            $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
+        }
+        catch (\Exception $exception) {
+            if ($this->redelivery(null, $message, $consumer, $exception)) {
+                $consumer->acknowledge($message);
+            }
+            else {
+                $consumer->reject($message, false);
+            }
+
+            throw $exception;
+        }
 
         /* @var ExecuteJob $job */
         if (!($job instanceof ExecuteJob)) {
@@ -1136,10 +1158,13 @@ class Connection extends Component implements BootstrapInterface
 
         if ($message->getExpiration() === null) {
             if (($job instanceof ExpiredJob) && (($ttl = $job->getTtl()) !== null)) {
-                $message->setExpiration($ttl);
+                $message->setExpiration($ttl * 1000);
+            }
+            elseif ($this->rpcTimeout !== null) {
+                $message->setExpiration($this->rpcTimeout * 1000 * 2);
             }
             elseif ($this->ttl !== null) {
-                $message->setExpiration($this->ttl);
+                $message->setExpiration($this->ttl * 1000);
             }
         }
 
@@ -1185,7 +1210,7 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param BaseJob               $job
+     * @param BaseJob|null          $job
      * @param AmqpMessage           $message
      * @param AmqpConsumer          $consumer
      * @param \Exception|\Throwable $error
@@ -1197,7 +1222,7 @@ class Connection extends Component implements BootstrapInterface
         $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
         if (!($error instanceof NeedRedeliveryException)) {
-            if ($job instanceof RetryableJob) {
+            if ($job && ($job instanceof RetryableJob)) {
                 if (!$job->canRetry($attempt, $error)) {
                     return false;
                 }
