@@ -7,6 +7,7 @@ use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
 use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
+use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpContext;
@@ -14,7 +15,6 @@ use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Interop\Amqp\Impl\AmqpBind;
-use Interop\Queue\PsrDestination;
 use matrozov\yii2amqp\debugger\Debugger;
 use matrozov\yii2amqp\events\ExecuteEvent;
 use matrozov\yii2amqp\events\JobEvent;
@@ -584,6 +584,8 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
+        (new AmqpExtConnectionFactory)->createContext()
+
         /** @var AmqpConnectionFactory $factory */
         $factory = new $connectionClass($config);
 
@@ -713,13 +715,13 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param PsrDestination $target
+     * @param AmqpDestination $target
      * @param RpcRequestJob  $job
      *
      * @return RpcResponseJob|bool|null
      * @throws
      */
-    protected function sendRpcMessage(PsrDestination $target, RpcRequestJob $job)
+    protected function sendRpcMessage(AmqpDestination $target, RpcRequestJob $job)
     {
         $message = $this->createMessage($job);
 
@@ -734,9 +736,9 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $queue = $this->_context->createQueue(uniqid($exchangeName . '_rpc_callback_', true));
-        $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
-        $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
-        $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
+        $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
+        $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
+        $queue->addFlag(AmqpDestination::FLAG_EXCLUSIVE);
         $queue->setArgument('x-expires', (int)$this->rpcTimeout * 1000 * 2);
         $this->_context->declareQueue($queue);
 
@@ -774,8 +776,6 @@ class Connection extends Component implements BootstrapInterface
 
             $consumer->acknowledge($responseMessage);
 
-            $this->_context->unsubscribe($consumer);
-
             // Catch rpc sub-trace
             if ($this->debugRequestTrace && !empty($childTrace = $responseMessage->getProperty(self::PROPERTY_TRACE))) {
                 $this->_traceItem['child'] = Json::decode($childTrace);
@@ -798,19 +798,17 @@ class Connection extends Component implements BootstrapInterface
             return $responseJob;
         }
 
-        $this->_context->unsubscribe($consumer);
-
         return null;
     }
 
     /**
-     * @param PsrDestination $target
+     * @param AmqpDestination $target
      * @param BaseJob        $job
      *
      * @return bool
      * @throws
      */
-    protected function sendSimpleMessage(PsrDestination $target, BaseJob $job)
+    protected function sendSimpleMessage(AmqpDestination $target, BaseJob $job)
     {
         $message = $this->createMessage($job);
 
@@ -1099,6 +1097,8 @@ class Connection extends Component implements BootstrapInterface
             $queueNames = array_keys($this->_queues);
         }
 
+        $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
+
         foreach ((array)$queueNames as $queueName) {
             if (!isset($this->_queues[$queueName])) {
                 throw new ErrorException('Queue config `' . $queueName . '` not found!');
@@ -1106,7 +1106,7 @@ class Connection extends Component implements BootstrapInterface
 
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
 
-            $this->_context->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
+            $subscriptionConsumer->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
                 $this->handleMessage($message, $consumer);
 
                 return true;
@@ -1118,7 +1118,7 @@ class Connection extends Component implements BootstrapInterface
 
             $loopTimeout = max(5, (int)$timeout);
 
-            $this->_context->consume($loopTimeout * 1000);
+            $subscriptionConsumer->consume($loopTimeout * 1000);
 
             if ($timeout !== null) {
                 $timeout -= microtime(true) - $start;
@@ -1131,13 +1131,13 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param PsrDestination $target
+     * @param AmqpDestination $target
      * @param BaseJob        $job
      * @param AmqpMessage    $message
      *
      * @throws
      */
-    protected function sendMessage(PsrDestination $target, BaseJob $job, AmqpMessage $message)
+    protected function sendMessage(AmqpDestination $target, BaseJob $job, AmqpMessage $message)
     {
         $producer = $this->_context->createProducer();
 
@@ -1243,11 +1243,11 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param PsrDestination $target
+     * @param AmqpDestination $target
      * @param BaseJob        $job
      * @param AmqpMessage    $message
      */
-    public function beforeSend(PsrDestination $target, BaseJob $job, AmqpMessage $message)
+    public function beforeSend(AmqpDestination $target, BaseJob $job, AmqpMessage $message)
     {
         $event = new SendEvent([
             'target'     => $target,
@@ -1268,11 +1268,11 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param PsrDestination $target
+     * @param AmqpDestination $target
      * @param BaseJob        $job
      * @param AmqpMessage    $message
      */
-    public function afterSend(PsrDestination $target, BaseJob $job, AmqpMessage $message)
+    public function afterSend(AmqpDestination $target, BaseJob $job, AmqpMessage $message)
     {
         $event = new SendEvent([
             'target'     => $target,
