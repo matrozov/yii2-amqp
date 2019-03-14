@@ -584,8 +584,6 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
-        (new AmqpExtConnectionFactory)->createContext()
-
         /** @var AmqpConnectionFactory $factory */
         $factory = new $connectionClass($config);
 
