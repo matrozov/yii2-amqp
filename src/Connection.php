@@ -736,7 +736,6 @@ class Connection extends Component implements BootstrapInterface
         $queue = $this->_context->createQueue(uniqid($exchangeName . '_rpc_callback_', true));
         $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
         $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
-        $queue->addFlag(AmqpDestination::FLAG_EXCLUSIVE);
         $queue->setArgument('x-expires', (int)$this->rpcTimeout * 1000 * 2);
         $this->_context->declareQueue($queue);
 
