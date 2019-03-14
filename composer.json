@@ -20,8 +20,8 @@
         "yiisoft/yii2": "~2.0.14"
     },
     "require-dev": {
-        "enqueue/amqp-lib": "^0.8",
-        "enqueue/amqp-bunny": "^0.8",
+        "enqueue/amqp-lib": "^0.9",
+        "enqueue/amqp-bunny": "^0.9",
 		"yiisoft/yii2-elasticsearch": "2.1.x-dev"
     },
     "suggest": {
