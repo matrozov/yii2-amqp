@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace matrozov\yii2amqp;
 
@@ -1129,12 +1130,12 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param AmqpDestination $target
-     * @param BaseJob        $job
-     * @param AmqpMessage    $message
+     * @param BaseJob|null    $job
+     * @param AmqpMessage     $message
      *
      * @throws
      */
-    protected function sendMessage(AmqpDestination $target, BaseJob $job, AmqpMessage $message)
+    protected function sendMessage(AmqpDestination $target, $job, AmqpMessage $message)
     {
         $producer = $this->_context->createProducer();
 
@@ -1214,7 +1215,7 @@ class Connection extends Component implements BootstrapInterface
      *
      * @return bool
      */
-    protected function redelivery(BaseJob $job, AmqpMessage $message, AmqpConsumer $consumer, $error)
+    protected function redelivery($job, AmqpMessage $message, AmqpConsumer $consumer, $error)
     {
         $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
@@ -1241,10 +1242,10 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param AmqpDestination $target
-     * @param BaseJob        $job
-     * @param AmqpMessage    $message
+     * @param BaseJob|null    $job
+     * @param AmqpMessage     $message
      */
-    public function beforeSend(AmqpDestination $target, BaseJob $job, AmqpMessage $message)
+    public function beforeSend(AmqpDestination $target, $job, AmqpMessage $message)
     {
         $event = new SendEvent([
             'target'     => $target,
@@ -1266,10 +1267,10 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param AmqpDestination $target
-     * @param BaseJob        $job
-     * @param AmqpMessage    $message
+     * @param BaseJob|null    $job
+     * @param AmqpMessage     $message
      */
-    public function afterSend(AmqpDestination $target, BaseJob $job, AmqpMessage $message)
+    public function afterSend(AmqpDestination $target, $job, AmqpMessage $message)
     {
         $event = new SendEvent([
             'target'     => $target,

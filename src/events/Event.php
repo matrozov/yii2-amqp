@@ -9,13 +9,13 @@ use matrozov\yii2amqp\jobs\BaseJob;
  * Class Event
  * @package matrozov\yii2amqp
  *
- * @property BaseJob     $requestJob
- * @property AmqpMessage $message
+ * @property BaseJob|null $requestJob
+ * @property AmqpMessage  $message
  */
 class Event extends \yii\base\Event
 {
     /**
-     * @var BaseJob
+     * @var BaseJob|null
      */
     public $requestJob;
 

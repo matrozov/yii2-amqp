@@ -2,18 +2,18 @@
 
 namespace matrozov\yii2amqp\events;
 
-use Interop\Queue\PsrDestination;
+use Interop\Amqp\AmqpDestination;
 
 /**
  * Class SendEvent
  * @package matrozov\yii2amqp\events
  *
- * @property PsrDestination $target
+ * @property AmqpDestination $target
  */
 class SendEvent extends Event
 {
     /**
-     * @var PsrDestination
+     * @var AmqpDestination
      */
     public $target;
 }
