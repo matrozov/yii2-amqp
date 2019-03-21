@@ -1227,7 +1227,11 @@ class Connection extends Component implements BootstrapInterface
                 }
 
                 $this->reopen();
+
+                continue;
             }
+
+            break;
         }
 
         $this->afterSend($target, $job, $message);
