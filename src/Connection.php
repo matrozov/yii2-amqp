@@ -611,6 +611,15 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @throws InvalidConfigException
+     */
+    public function reopen()
+    {
+        $this->close();
+        $this->open();
+    }
+
+    /**
      * Setup queues, exchanges and bindings
      *
      * @throws
@@ -1158,8 +1167,8 @@ class Connection extends Component implements BootstrapInterface
             if (($job instanceof ExpiredJob) && (($ttl = $job->getTtl()) !== null)) {
                 $message->setExpiration($ttl * 1000);
             }
-            elseif ($this->rpcTimeout !== null) {
-                $message->setExpiration($this->rpcTimeout * 1000 * 2);
+            elseif (($job instanceof RpcRequestJob) && ($this->rpcTimeout !== null)) {
+                $message->setExpiration($this->rpcTimeout * 1000);
             }
             elseif ($this->ttl !== null) {
                 $message->setExpiration($this->ttl * 1000);
@@ -1202,7 +1211,24 @@ class Connection extends Component implements BootstrapInterface
 
         $this->beforeSend($target, $job, $message);
 
-        $producer->send($target, $message);
+        $try = 1;
+
+        while (true) {
+            try {
+                $producer->send($target, $message);
+            }
+            catch (\Exception $e) {
+                Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "' . $e->getMessage() . '", try: ' . $try . '/3', 0, 1, __FILE__, __LINE__, $e));
+
+                $try++;
+
+                if ($try > 3) {
+                    throw new ErrorException('Can\'t send message to queue. Connection closed!');
+                }
+
+                $this->reopen();
+            }
+        }
 
         $this->afterSend($target, $job, $message);
     }
@@ -1214,6 +1240,7 @@ class Connection extends Component implements BootstrapInterface
      * @param \Exception|\Throwable $error
      *
      * @return bool
+     * @throws \Exception
      */
     protected function redelivery($job, AmqpMessage $message, AmqpConsumer $consumer, $error)
     {
