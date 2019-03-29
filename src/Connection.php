@@ -767,7 +767,7 @@ class Connection extends Component implements BootstrapInterface
                 throw new RpcTimeoutException('Queue timeout!');
             }
 
-            if (!$message->getCorrelationId() != $responseMessage->getCorrelationId()) {
+            if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
                 $consumer->reject($responseMessage, true);
 
                 if ($timeout !== null) {
@@ -899,6 +899,7 @@ class Connection extends Component implements BootstrapInterface
      * @param RpcResponseJob $responseJob
      *
      * @return bool
+     * @throws ErrorException
      */
     protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
     {
@@ -906,7 +907,12 @@ class Connection extends Component implements BootstrapInterface
 
         $queue = $this->_context->createQueue($queueName);
 
-        return $this->sendSimpleMessage($queue, $responseJob);
+        $responseMessage = $this->createMessage($responseJob);
+        $responseMessage->setCorrelationId($message->getCorrelationId());
+
+        $this->sendMessage($queue, $responseJob, $responseMessage);
+
+        return true;
     }
 
     /**
