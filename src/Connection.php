@@ -7,7 +7,6 @@ use Enqueue\AmqpBunny\AmqpConnectionFactory as AmqpBunnyConnectionFactory;
 use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
-use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
 use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
@@ -21,6 +20,7 @@ use matrozov\yii2amqp\events\ExecuteEvent;
 use matrozov\yii2amqp\events\JobEvent;
 use matrozov\yii2amqp\events\SendEvent;
 use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
+use matrozov\yii2amqp\exceptions\RedeliveryException;
 use matrozov\yii2amqp\exceptions\RpcTimeoutException;
 use matrozov\yii2amqp\exceptions\RpcTransferableException;
 use matrozov\yii2amqp\jobs\BaseJob;
@@ -591,7 +591,7 @@ class Connection extends Component implements BootstrapInterface
         $this->_context = $factory->createContext();
 
         if ($this->_context instanceof DelayStrategyAware) {
-            $this->_context->setDelayStrategy(new RabbitMqDlxDelayStrategy());
+            $this->_context->setDelayStrategy(new DelayStrategy());
         }
 
         $this->setup();
@@ -743,10 +743,10 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue(uniqid($exchangeName . '_rpc_callback_', true));
+        $queue = $this->_context->createQueue($exchangeName . '.rpc.callback');
         $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
         $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
-        $queue->setArgument('x-expires', (int)$this->rpcTimeout * 1000 * 2);
+        $queue->setArgument('x-message-ttl', $this->rpcTimeout * 1000 * 2);
         $this->_context->declareQueue($queue);
 
         $message->setReplyTo($queue->getQueueName());
@@ -768,6 +768,8 @@ class Connection extends Component implements BootstrapInterface
             }
 
             if (!$message->getCorrelationId() != $responseMessage->getCorrelationId()) {
+                $consumer->reject($responseMessage, true);
+
                 if ($timeout !== null) {
                     $timeout -= (microtime(true) - $start);
 
@@ -775,8 +777,6 @@ class Connection extends Component implements BootstrapInterface
                         throw new RpcTimeoutException('Queue timeout!');
                     }
                 }
-
-                $consumer->reject($responseMessage, false);
 
                 continue;
             }
@@ -975,28 +975,38 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleRpcMessageException(\Exception $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        if ((!($exception instanceof HttpException)) && (!($exception instanceof RpcTransferableException))) {
+        if (($exception instanceof HttpException) || ($exception instanceof RpcTransferableException)) {
+            $responseJob = new RpcExceptionResponseJob($exception);
+
+            $this->replyRpcMessage($message, $responseJob);
+
+            Yii::warning($exception->getMessage());
+
+            return null;
+        }
+
+        if ($exception instanceof NeedRedeliveryException) {
             if ($this->redelivery($job, $message, $consumer, $exception)) {
-                $consumer->acknowledge($message);
+                Yii::$app->getErrorHandler()->logException(new RedeliveryException($exception->getMessage(), 0, $exception));
             }
             else {
                 $responseJob = new RpcFalseResponseJob();
 
                 $this->replyRpcMessage($message, $responseJob);
 
-                $consumer->reject($message, false);
+                Yii::$app->getErrorHandler()->logException($exception);
             }
 
-            return $exception;
+            return null;
         }
 
-        $responseJob = new RpcExceptionResponseJob($exception);
+        if (!$this->redelivery($job, $message, $consumer, $exception)) {
+            $responseJob = new RpcExceptionResponseJob($exception);
 
-        $this->replyRpcMessage($message, $responseJob);
+            $this->replyRpcMessage($message, $responseJob);
+        }
 
-        Yii::$app->getErrorHandler()->logException($exception);
-
-        return null;
+        return $exception;
     }
 
     /**
@@ -1008,29 +1018,71 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
+        $oldDebugRequestTrace = $this->debugRequestTrace;
+
+        $this->debugRequestTrace = $this->debugRequestTrace || $message->getProperty(self::PROPERTY_TRACE_CHILD, false);
+
+        $exceptionInt = null;
+        $exceptionExt = null;
+
         try {
             $this->beforeExecute($job, null, $message, $consumer);
 
-            $job->execute($this, $message);
+            try {
+                $job->execute($this, $message);
+            }
+            catch (\Exception $exception) {
+                $exceptionInt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
+            }
 
             $this->afterExecute($job, null, $message, $consumer);
         }
         catch (\Exception $exception) {
-            if (!($exception instanceof HttpException)) {
-                if ($this->redelivery($job, $message, $consumer, $exception)) {
-                    $consumer->acknowledge($message);
-                }
-                else {
-                    $consumer->reject($message, false);
-                }
-
-                throw $exception;
+            if (!$exceptionInt) {
+                $exceptionExt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
             }
-
-            Yii::$app->getErrorHandler()->logException($exception);
         }
 
         $consumer->acknowledge($message);
+
+        $this->debugRequestTrace = $oldDebugRequestTrace;
+
+        if ($exceptionInt || $exceptionExt) {
+            throw $exceptionInt ? $exceptionInt : $exceptionExt;
+        }
+    }
+
+    /**
+     * @param \Exception   $exception
+     * @param ExecuteJob   $job
+     * @param AmqpMessage  $message
+     * @param AmqpConsumer $consumer
+     *
+     * @return \Exception|null
+     * @throws \Exception
+     */
+    protected function handleSimpleMessageException(\Exception $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        if ($exception instanceof HttpException) {
+            Yii::warning($exception->getMessage());
+
+            return null;
+        }
+
+        if ($exception instanceof NeedRedeliveryException) {
+            if ($this->redelivery($job, $message, $consumer, $exception)) {
+                Yii::$app->getErrorHandler()->logException(new RedeliveryException($exception->getMessage(), 0, $exception));
+            }
+            else {
+                Yii::$app->getErrorHandler()->logException($exception);
+            }
+
+            return null;
+        }
+
+        $this->redelivery($job, $message, $consumer, $exception);
+
+        return $exception;
     }
 
     /**
@@ -1060,19 +1112,16 @@ class Connection extends Component implements BootstrapInterface
             $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
         }
         catch (\Exception $exception) {
-            if ($this->redelivery(null, $message, $consumer, $exception)) {
-                $consumer->acknowledge($message);
-            }
-            else {
-                $consumer->reject($message, false);
-            }
+            $this->redelivery(null, $message, $consumer, $exception);
+
+            $consumer->acknowledge($message);
 
             throw $exception;
         }
 
         /* @var ExecuteJob $job */
         if (!($job instanceof ExecuteJob)) {
-            $consumer->reject($message, false);
+            $consumer->acknowledge($message);
 
             if (is_object($job)) {
                 throw new ErrorException('Can\'t execute unknown job type: ' . get_class($job));
@@ -1250,15 +1299,13 @@ class Connection extends Component implements BootstrapInterface
     {
         $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
-        if (!($error instanceof NeedRedeliveryException)) {
-            if ($job && ($job instanceof RetryableJob)) {
-                if (!$job->canRetry($attempt, $error)) {
-                    return false;
-                }
-            }
-            else if ($attempt >= $this->maxAttempts) {
+        if ($job && ($job instanceof RetryableJob)) {
+            if (!$job->canRetry($attempt, $error)) {
                 return false;
             }
+        }
+        else if ($attempt >= $this->maxAttempts) {
+            return false;
         }
 
         $newMessage = $this->_context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
