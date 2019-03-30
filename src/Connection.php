@@ -804,16 +804,20 @@ class Connection extends Component implements BootstrapInterface
         }
         catch (\Exception $exception)
         {
-            $debug['exception'] = $exception->getMessage();
-
-            throw $exception;
-        }
-        finally {
             if ($this->debugger) {
-                $debug['result'] = $result !== false;
+                $debug['result']    = $result !== false;
+                $debug['exception'] = $exception->getMessage();
 
                 $this->debug('result', $debug);
             }
+
+            throw $exception;
+        }
+
+        if ($this->debugger) {
+            $debug['result'] = $result !== false;
+
+            $this->debug('result', $debug);
         }
 
         return $result;
@@ -1146,14 +1150,20 @@ class Connection extends Component implements BootstrapInterface
                     $this->handleMessage($message, $consumer);
                 }
                 catch (\Exception $exception) {
-                    $debug['exception'] = $exception->getMessage();
-                }
-                finally {
                     if ($this->debugger) {
+                        $debug['exception']  = $exception->getMessage();
                         $debug['time_spent'] = microtime(true) - $debug['time'];
 
                         $this->debug('execute', $debug);
                     }
+
+                    throw $exception;
+                }
+
+                if ($this->debugger) {
+                    $debug['time_spent'] = microtime(true) - $debug['time'];
+
+                    $this->debug('execute', $debug);
                 }
 
                 $this->_debug_request_id        = $request_id;
@@ -1256,7 +1266,9 @@ class Connection extends Component implements BootstrapInterface
                 'request_id'        => $this->_debug_request_id,
                 'request_action'    => $this->_debug_request_action,
                 'job'               => get_class($job),
-                'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : false,
+                'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : null,
+                'rpc_request'       => ($job instanceof RpcRequestJob),
+                'rpc_response'      => ($job instanceof RpcResponseJob),
                 'message_id'        => $message->getMessageId(),
                 'parent_message_id' => $this->_debug_parent_message_id,
                 'attempt'           => $message->getProperty(self::PROPERTY_ATTEMPT),

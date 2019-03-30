@@ -30,6 +30,8 @@ class Debugger extends Component
         foreach ($this->targets as &$target) {
             $target = Instance::ensure($target, Target::class);
         }
+
+        register_shutdown_function([$this, 'handleFatalError']);
     }
 
     /**
@@ -48,5 +50,10 @@ class Debugger extends Component
         foreach ($this->targets as $target) {
             $target->flush();
         }
+    }
+
+    public function handleFatalError()
+    {
+        $this->flush();
     }
 }
