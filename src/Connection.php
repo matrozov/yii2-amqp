@@ -384,11 +384,13 @@ class Connection extends Component implements BootstrapInterface
     public $debugger = null;
 
     /**
-     * @var string $_debug_request_id
-     * @var string $_debug_request_action
+     * @var string      $_debug_request_id
+     * @var string      $_debug_request_action
+     * @var string|null $_debug_parent_message_id
      */
     protected $_debug_request_id;
     protected $_debug_request_action;
+    protected $_debug_parent_message_id;
 
     /**
      * @var AmqpContext
@@ -730,7 +732,7 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue($exchangeName . ($this->rpcTimeout ? '.' . ($this->rpcTimeout * 2) : '') . '.rpc.callback');
+        $queue = $this->_context->createQueue($exchangeName . '.callback' . ($this->rpcTimeout ? '.' . ($this->rpcTimeout * 2 * 1000) : ''));
         $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
         $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
         $queue->addFlag(AmqpDestination::FLAG_DURABLE);
@@ -746,49 +748,74 @@ class Connection extends Component implements BootstrapInterface
 
         $timeout = $this->rpcTimeout;
 
-        while (true) {
-            $start = microtime(true);
+        $debug = [
+            'time'       => microtime(true),
+            'request_id' => $this->_debug_request_id,
+            'message_id' => $message->getMessageId(),
+        ];
 
-            $responseMessage = $consumer->receive((int)$timeout * 1000);
+        $result = null;
 
-            if (!$responseMessage) {
-                throw new RpcTimeoutException('Queue timeout!');
-            }
+        try {
+            while (true) {
+                $start = microtime(true);
 
-            if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
-                $consumer->reject($responseMessage, true);
+                $responseMessage = $consumer->receive((int)$timeout * 1000);
 
-                if ($timeout !== null) {
-                    $timeout -= (microtime(true) - $start);
-
-                    if ($timeout < 0) {
-                        throw new RpcTimeoutException('Queue timeout!');
-                    }
+                if (!$responseMessage) {
+                    throw new RpcTimeoutException('Queue timeout!');
                 }
 
-                continue;
+                if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
+                    $consumer->reject($responseMessage, true);
+
+                    if ($timeout !== null) {
+                        $timeout -= (microtime(true) - $start);
+
+                        if ($timeout < 0) {
+                            throw new RpcTimeoutException('Queue timeout!');
+                        }
+                    }
+
+                    continue;
+                }
+
+                $consumer->acknowledge($responseMessage);
+
+                $responseJob = $this->serializer->deserialize($responseMessage->getBody());
+
+                if (!($responseJob instanceof RpcResponseJob)) {
+                    throw new ErrorException('Root object must be RpcResponseJob!');
+                }
+
+                if ($responseJob instanceof RpcFalseResponseJob) {
+                    $result = false;
+                    break;
+                }
+
+                if ($responseJob instanceof RpcExceptionResponseJob) {
+                    throw $responseJob->exception();
+                }
+
+                $result = $responseJob;
+                break;
             }
+        }
+        catch (\Exception $exception)
+        {
+            $debug['exception'] = $exception->getMessage();
 
-            $consumer->acknowledge($responseMessage);
+            throw $exception;
+        }
+        finally {
+            if ($this->debugger) {
+                $debug['result'] = $result !== false;
 
-            $responseJob = $this->serializer->deserialize($responseMessage->getBody());
-
-            if (!($responseJob instanceof RpcResponseJob)) {
-                throw new ErrorException('Root object must be RpcResponseJob!');
+                $this->debug('result', $debug);
             }
-
-            if ($responseJob instanceof RpcFalseResponseJob) {
-                return false;
-            }
-
-            if ($responseJob instanceof RpcExceptionResponseJob) {
-                throw $responseJob->exception();
-            }
-
-            return $responseJob;
         }
 
-        return null;
+        return $result;
     }
 
     /**
@@ -1101,7 +1128,34 @@ class Connection extends Component implements BootstrapInterface
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
 
             $subscriptionConsumer->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
-                $this->handleMessage($message, $consumer);
+                $request_id = $this->_debug_request_id;
+
+                $this->_debug_request_id        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $request_id);
+                $this->_debug_parent_message_id = $message->getMessageId();
+
+                $debug = [
+                    'app'        => Yii::$app->name,
+                    'time'       => microtime(true),
+                    'request_id' => $this->_debug_request_id,
+                    'message_id' => $message->getMessageId(),
+                ];
+
+                try {
+                    $this->handleMessage($message, $consumer);
+                }
+                catch (\Exception $exception) {
+                    $debug['exception'] = $exception->getMessage();
+                }
+                finally {
+                    if ($this->debugger) {
+                        $debug['time_spent'] = microtime(true) - $debug['time'];
+
+                        $this->debug('execute', $debug);
+                    }
+                }
+
+                $this->_debug_request_id        = $request_id;
+                $this->_debug_parent_message_id = null;
 
                 return true;
             });
@@ -1192,6 +1246,36 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $this->afterSend($target, $job, $message);
+
+        if ($this->debugger) {
+            $debug = [
+                'app'               => Yii::$app->name,
+                'time'              => microtime(true),
+                'request_id'        => $this->_debug_request_id,
+                'request_action'    => $this->_debug_request_action,
+                'job'               => get_class($job),
+                'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : false,
+                'message_id'        => $message->getMessageId(),
+                'parent_message_id' => $this->_debug_parent_message_id,
+                'persistent'        => $message->getDeliveryMode() == AmqpMessage::DELIVERY_MODE_PERSISTENT,
+                'priority'          => $message->getPriority(),
+                'ttl'               => $message->getExpiration(),
+                'delay'             => $producer->getDeliveryDelay(),
+            ];
+
+            if ($target instanceof AmqpTopic) {
+                $debug['target_type'] = 'topic';
+                $debug['target']      = $target->getTopicName();
+            }
+            elseif ($target instanceof AmqpQueue) {
+                $debug['target_type'] = 'queue';
+                $debug['target']      = $target->getQueueName();
+            }
+
+            $this->debug('send', $debug);
+
+            $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request_id);
+        }
     }
 
     /**
