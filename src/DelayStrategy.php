@@ -13,6 +13,7 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
 {
     /**
      * {@inheritdoc}
+     * @throws
      */
     public function delayMessage(AmqpContext $context, AmqpDestination $dest, AmqpMessage $message, int $delay): void
     {

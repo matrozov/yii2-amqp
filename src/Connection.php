@@ -105,16 +105,12 @@ use yii\web\HttpException;
  * @property Serializer     $serializer
  *
  * @property Debugger       $debugger
- * @property bool           $debugRequestTrace
- * @property bool           $debugRequestTime
- * @property int|float      $debugRequestTimeMin
  */
 class Connection extends Component implements BootstrapInterface
 {
-    const PROPERTY_ATTEMPT     = 'amqp-attempt';
-    const PROPERTY_JOB_NAME    = 'amqp-job-name';
-    const PROPERTY_TRACE       = 'amqp-trace';
-    const PROPERTY_TRACE_CHILD = 'amqp-request-trace';
+    const PROPERTY_ATTEMPT          = 'amqp-attempt';
+    const PROPERTY_JOB_NAME         = 'amqp-job-name';
+    const PROPERTY_DEBUG_REQUEST_ID = 'amqp-debug-request-id';
 
     const ENQUEUE_AMQP_LIB   = 'enqueue/amqp-lib';
     const ENQUEUE_AMQP_EXT   = 'enqueue/amqp-ext';
@@ -391,28 +387,11 @@ class Connection extends Component implements BootstrapInterface
     public $debugger = null;
 
     /**
-     * @var bool
+     * @var array  $_debug_request
+     * @var string $_debug_message_id
      */
-    public $debugRequestTrace = false;
-
-    /**
-     * @var bool
-     */
-    public $debugRequestTime  = false;
-
-    /**
-     * @var int|float|null
-     */
-    public $debugRequestTimeMin = null;
-
-    /**
-     * @var array $_trace
-     * @var array $_traceItem
-     * @var float $_traceStart
-     */
-    protected $_trace      = [];
-    protected $_traceItem  = [];
-    protected $_traceStart = 0;
+    protected $_debug_request = [];
+    protected $_debug_message_id;
 
     /**
      * @var AmqpContext
@@ -457,6 +436,16 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $this->debugger = Instance::ensure($this->debugger);
+
+            $this->_debug_request['app'] = Yii::$app->id;
+
+            Event::on(BaseApp::class, BaseApp::EVENT_BEFORE_REQUEST, function() {
+                $this->_debug_request['request_id'] = uniqid('', true);
+            });
+
+            Event::on(BaseApp::class, BaseApp::EVENT_BEFORE_ACTION, function() {
+                $this->_debug_request['action'] = Yii::$app->requestedAction->getUniqueId();
+            });
         }
 
         Event::on(BaseApp::class, BaseApp::EVENT_AFTER_REQUEST, function () {
@@ -746,6 +735,7 @@ class Connection extends Component implements BootstrapInterface
         $queue = $this->_context->createQueue($exchangeName . '.rpc.callback');
         $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
         $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
+        $queue->addFlag(AmqpDestination::FLAG_DURABLE);
         $queue->setArgument('x-message-ttl', $this->rpcTimeout * 1000 * 2);
         $this->_context->declareQueue($queue);
 
@@ -782,11 +772,6 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $consumer->acknowledge($responseMessage);
-
-            // Catch rpc sub-trace
-            if ($this->debugRequestTrace && !empty($childTrace = $responseMessage->getProperty(self::PROPERTY_TRACE))) {
-                $this->_traceItem['child'] = Json::decode($childTrace);
-            }
 
             $responseJob = $this->serializer->deserialize($responseMessage->getBody());
 
@@ -845,23 +830,20 @@ class Connection extends Component implements BootstrapInterface
 
         $exchange = $this->_exchanges[$exchangeName];
 
-        if ($this->debugRequestTrace) {
-            // Trace SEND start
+        $requestTime = microtime(true);
 
-            $this->_traceItem = [
-                'app'      => Yii::$app->id,
-                'exchange' => $exchangeName,
-                'job'      => get_class($job),
-            ];
+        if ($this->debugger) {
+            // Debug SEND start
 
-            $this->_traceStart = microtime(true);
+            $this->_debug_request['exchange'] = $exchangeName;
+            $this->_debug_request['job']      = get_class($job);
 
             if ($job instanceof RequestNamedJob) {
-                $this->_traceItem['jobName'] = $job::jobName();
+                $this->_debug_request['jobName'] = $job::jobName();
             }
 
             if ($job instanceof RpcRequestJob) {
-                $this->_traceItem['rpc'] = true;
+                $this->_debug_request['rpc'] = true;
             }
         }
 
@@ -872,23 +854,13 @@ class Connection extends Component implements BootstrapInterface
             $result = $this->sendSimpleMessage($exchange, $job);
         }
 
-        if ($this->debugRequestTrace) {
-            // Trace SEND stop
+        if ($this->debugger) {
+            // Debug SEND stop
 
-            $this->_traceItem['time'] = microtime(true) - $this->_traceStart;
-            $this->_traceItem['res']  = $result !== false;
+            $this->_debug_request['time'] = microtime(true) - $requestTime;
+            $this->_debug_request['res']  = $result !== false;
 
-            if ($this->debugRequestTime && (($this->debugRequestTimeMin === null) || ($this->_traceItem['time'] > $this->debugRequestTimeMin))) {
-                $item = $this->_traceItem;
-
-                $item['json'] = Json::encode($item);
-
-                ArrayHelper::remove($item, 'child');
-
-                $this->debug('request-time', $item);
-            }
-
-            $this->_trace[] = $this->_traceItem;
+            $this->debug('request', $this->_debug_request);
         }
 
         return $result;
@@ -924,9 +896,8 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleRpcMessage(RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $oldDebugRequestTrace = $this->debugRequestTrace;
-
-        $this->debugRequestTrace = $this->debugRequestTrace || $message->getProperty(self::PROPERTY_TRACE_CHILD, false);
+        $this->_debug_request['parent_message_id'] = $message->getMessageId();
+        $this->_debug_request['request_id']        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request['request_id']);
 
         $exceptionInt = null;
         $exceptionExt = null;
@@ -961,13 +932,13 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
+        $this->_debug_request['parent_message_id'] = null;
+
+        $consumer->acknowledge($message);
+
         if ($exceptionInt || $exceptionExt) {
             throw $exceptionInt ? $exceptionInt : $exceptionExt;
         }
-
-        $this->debugRequestTrace = $oldDebugRequestTrace;
-
-        $consumer->acknowledge($message);
     }
 
     /**
@@ -1024,9 +995,8 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $oldDebugRequestTrace = $this->debugRequestTrace;
-
-        $this->debugRequestTrace = $this->debugRequestTrace || $message->getProperty(self::PROPERTY_TRACE_CHILD, false);
+        $this->_debug_request['parent_message_id'] = $message->getMessageId();
+        $this->_debug_request['request_id']        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request['request_id']);
 
         $exceptionInt = null;
         $exceptionExt = null;
@@ -1049,9 +1019,9 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
-        $consumer->acknowledge($message);
+        $this->_debug_request['parent_message_id'] = null;
 
-        $this->debugRequestTrace = $oldDebugRequestTrace;
+        $consumer->acknowledge($message);
 
         if ($exceptionInt || $exceptionExt) {
             throw $exceptionInt ? $exceptionInt : $exceptionExt;
@@ -1234,34 +1204,14 @@ class Connection extends Component implements BootstrapInterface
             $producer->setDeliveryDelay($delay * 1000);
         }
 
-        if ($this->debugRequestTrace) {
-            if ($message->getDeliveryMode() == AmqpMessage::DELIVERY_MODE_PERSISTENT) {
-                $this->_traceItem['persistent'] = true;
-            }
+        if ($this->debugger) {
+            $this->_debug_request['persistent'] = ($message->getDeliveryMode() == AmqpMessage::DELIVERY_MODE_PERSISTENT);
+            $this->_debug_request['priority']   = $message->getPriority();
+            $this->_debug_request['ttl']        = $message->getExpiration();
+            $this->_debug_request['delay']      = $producer->getDeliveryDelay();
+            $this->_debug_request['attempt']    = $message->getProperty(self::PROPERTY_ATTEMPT);
 
-            if (($priority = $message->getPriority()) !== 0) {
-                $this->_traceItem['priority'] = $priority;
-            }
-
-            if (($ttl = $message->getExpiration()) !== 0) {
-                $this->_traceItem['ttl'] = $ttl;
-            }
-
-            if (($delay = $producer->getDeliveryDelay()) !== null) {
-                $this->_traceItem['delay'] = $delay;
-            }
-
-            if (($attempt = $message->getProperty(self::PROPERTY_ATTEMPT)) !== null) {
-                $this->_traceItem['attempt'] = $attempt;
-            }
-
-            if ($job instanceof RpcRequestJob) {
-                $message->setProperty(self::PROPERTY_TRACE_CHILD, true);
-            }
-
-            if (($job instanceof RpcResponseJob) && !empty($this->_trace)) {
-                $message->setProperty(self::PROPERTY_TRACE, Json::encode($this->_trace));
-            }
+            $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request['request_id']);
         }
 
         $this->beforeSend($target, $job, $message);
@@ -1428,32 +1378,6 @@ class Connection extends Component implements BootstrapInterface
         }
     }
 
-    protected function debugTrace()
-    {
-        $content = [
-            'trace' => Json::encode($this->_trace),
-        ];
-
-        if (Yii::$app->request instanceof \yii\web\Request) {
-            /** @var \yii\web\Request $request */
-            $request = Yii::$app->request;
-
-            $content = array_merge($content, [
-                'method' => $request->method,
-                'url'    => $request->absoluteUrl,
-            ]);
-        }
-        elseif (Yii::$app->request instanceof \yii\console\Request) {
-            $content = array_merge($content, [
-                'command' => implode(' ', $_SERVER['argv']),
-            ]);
-        }
-
-        $this->debug('request-trace', $content);
-
-        $this->_trace = [];
-    }
-
     /**
      * @param string $type
      * @param mixed  $content
@@ -1471,10 +1395,6 @@ class Connection extends Component implements BootstrapInterface
     {
         if (!$this->debugger) {
             return;
-        }
-
-        if ($this->debugRequestTrace && !empty($this->_trace)) {
-            $this->debugTrace();
         }
 
         $this->debugger->flush();

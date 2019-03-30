@@ -17,24 +17,19 @@ use yii\web\HttpException;
  */
 class RpcExceptionResponseJob implements RpcResponseJob
 {
-    public $className;
-
     public $statusCode;
     public $message;
     public $code;
 
     public function __construct(Exception $exception = null)
     {
-        if ($exception) {
-            $this->className = get_class($exception);
-
-            $this->message = $exception->getMessage();
-            $this->code    = $exception->getCode();
-
-            if ($exception instanceof HttpException) {
-                $this->statusCode = $exception->statusCode;
-            }
+        if (!$exception) {
+            return;
         }
+
+        $this->statusCode = ($exception instanceof HttpException) ? $exception->statusCode : 500;
+        $this->code       = $exception->getCode();
+        $this->message    = $exception->getMessage();
     }
 
     /**
@@ -42,10 +37,6 @@ class RpcExceptionResponseJob implements RpcResponseJob
      */
     public function exception()
     {
-        if ($this->className instanceof HttpException) {
-            return new HttpException($this->statusCode, $this->message, $this->code);
-        }
-
-        return new Exception($this->message, $this->code);
+        return new HttpException($this->statusCode, $this->message, $this->code);
     }
 }
