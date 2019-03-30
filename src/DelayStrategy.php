@@ -30,7 +30,7 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
         if ($dest instanceof AmqpTopic) {
             $routingKey = $message->getRoutingKey() ? '.' . $message->getRoutingKey() : '';
 
-            $name = sprintf('%s%s.delay.%s.topic', $dest->getTopicName(), $routingKey, $delay);
+            $name = sprintf('%s%s.topic.delay.%s', $dest->getTopicName(), $routingKey, $delay);
 
             $delayQueue = $context->createQueue($name);
             $delayQueue->addFlag(AmqpTopic::FLAG_DURABLE);
@@ -38,7 +38,7 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
             $delayQueue->setArgument('x-dead-letter-exchange', $dest->getTopicName());
             $delayQueue->setArgument('x-dead-letter-routing-key', (string) $delayMessage->getRoutingKey());
         } elseif ($dest instanceof AmqpQueue) {
-            $name = sprintf('%s.delay.%s.queue', $dest->getQueueName(), $delay);
+            $name = sprintf('%s.queue.delay.%s', $dest->getQueueName(), $delay);
 
             $delayQueue = $context->createQueue($name);
             $delayQueue->addFlag(AmqpTopic::FLAG_DURABLE);

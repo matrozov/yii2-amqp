@@ -732,7 +732,7 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue($exchangeName . '.callback' . ($this->rpcTimeout ? '.' . ($this->rpcTimeout * 2 * 1000) : ''));
+        $queue = $this->_context->createQueue($exchangeName . '.rpc.callback' . ($this->rpcTimeout ? '.' . ($this->rpcTimeout * 2 * 1000) : ''));
         $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
         $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
         $queue->addFlag(AmqpDestination::FLAG_DURABLE);
@@ -749,6 +749,7 @@ class Connection extends Component implements BootstrapInterface
         $timeout = $this->rpcTimeout;
 
         $debug = [
+            'app_id'     => Yii::$app->id,
             'time'       => microtime(true),
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
@@ -1134,10 +1135,11 @@ class Connection extends Component implements BootstrapInterface
                 $this->_debug_parent_message_id = $message->getMessageId();
 
                 $debug = [
-                    'app'        => Yii::$app->name,
+                    'app_id'     => Yii::$app->id,
                     'time'       => microtime(true),
                     'request_id' => $this->_debug_request_id,
                     'message_id' => $message->getMessageId(),
+                    'attempt'    => $message->getProperty(self::PROPERTY_ATTEMPT),
                 ];
 
                 try {
@@ -1249,7 +1251,7 @@ class Connection extends Component implements BootstrapInterface
 
         if ($this->debugger) {
             $debug = [
-                'app'               => Yii::$app->name,
+                'app_id'            => Yii::$app->id,
                 'time'              => microtime(true),
                 'request_id'        => $this->_debug_request_id,
                 'request_action'    => $this->_debug_request_action,
@@ -1257,6 +1259,7 @@ class Connection extends Component implements BootstrapInterface
                 'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : false,
                 'message_id'        => $message->getMessageId(),
                 'parent_message_id' => $this->_debug_parent_message_id,
+                'attempt'           => $message->getProperty(self::PROPERTY_ATTEMPT),
                 'persistent'        => $message->getDeliveryMode() == AmqpMessage::DELIVERY_MODE_PERSISTENT,
                 'priority'          => $message->getPriority(),
                 'ttl'               => $message->getExpiration(),
