@@ -384,11 +384,11 @@ class Connection extends Component implements BootstrapInterface
     public $debugger = null;
 
     /**
-     * @var array  $_debug_request
-     * @var string $_debug_message_id
+     * @var string $_debug_request_id
+     * @var string $_debug_request_action
      */
-    protected $_debug_request = [];
-    protected $_debug_message_id;
+    protected $_debug_request_id;
+    protected $_debug_request_action;
 
     /**
      * @var AmqpContext
@@ -434,14 +434,15 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
-            $this->_debug_request['app'] = Yii::$app->id;
+            $this->_debug_request_id     = uniqid('', true);
+            $this->_debug_request_action = Yii::$app->requestedAction ? Yii::$app->requestedAction->getUniqueId() : '';
 
             Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function() {
-                $this->_debug_request['request_id'] = uniqid('', true);
+                $this->_debug_request_id = uniqid('', true);
             });
 
             Yii::$app->on(Application::EVENT_BEFORE_ACTION, function() {
-                $this->_debug_request['action'] = Yii::$app->requestedAction->getUniqueId();
+                $this->_debug_request_action = Yii::$app->requestedAction->getUniqueId();
             });
         }
 
@@ -502,7 +503,7 @@ class Connection extends Component implements BootstrapInterface
      */
     public function bootstrap($app)
     {
-        if ((!$app instanceof Application)) {
+        if (!($app instanceof Application)) {
             return;
         }
 
@@ -827,37 +828,11 @@ class Connection extends Component implements BootstrapInterface
 
         $exchange = $this->_exchanges[$exchangeName];
 
-        $requestTime = microtime(true);
-
-        if ($this->debugger) {
-            // Debug SEND start
-
-            $this->_debug_request['exchange'] = $exchangeName;
-            $this->_debug_request['job']      = get_class($job);
-
-            if ($job instanceof RequestNamedJob) {
-                $this->_debug_request['jobName'] = $job::jobName();
-            }
-
-            if ($job instanceof RpcRequestJob) {
-                $this->_debug_request['rpc'] = true;
-            }
-        }
-
         if ($job instanceof RpcRequestJob) {
             $result = $this->sendRpcMessage($exchange, $job);
         }
         else {
             $result = $this->sendSimpleMessage($exchange, $job);
-        }
-
-        if ($this->debugger) {
-            // Debug SEND stop
-
-            $this->_debug_request['time'] = microtime(true) - $requestTime;
-            $this->_debug_request['res']  = $result !== false;
-
-            $this->debug('request', $this->_debug_request);
         }
 
         return $result;
@@ -893,9 +868,6 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleRpcMessage(RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $this->_debug_request['parent_message_id'] = $message->getMessageId();
-        $this->_debug_request['request_id']        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request['request_id']);
-
         $exceptionInt = null;
         $exceptionExt = null;
 
@@ -928,8 +900,6 @@ class Connection extends Component implements BootstrapInterface
                 $exceptionExt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
             }
         }
-
-        $this->_debug_request['parent_message_id'] = null;
 
         $consumer->acknowledge($message);
 
@@ -992,9 +962,6 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $this->_debug_request['parent_message_id'] = $message->getMessageId();
-        $this->_debug_request['request_id']        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request['request_id']);
-
         $exceptionInt = null;
         $exceptionExt = null;
 
@@ -1015,8 +982,6 @@ class Connection extends Component implements BootstrapInterface
                 $exceptionExt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
             }
         }
-
-        $this->_debug_request['parent_message_id'] = null;
 
         $consumer->acknowledge($message);
 
@@ -1199,16 +1164,6 @@ class Connection extends Component implements BootstrapInterface
 
         if (($job instanceof DelayedJob) && (($delay = $job->getDelay()) !== null)) {
             $producer->setDeliveryDelay($delay * 1000);
-        }
-
-        if ($this->debugger) {
-            $this->_debug_request['persistent'] = ($message->getDeliveryMode() == AmqpMessage::DELIVERY_MODE_PERSISTENT);
-            $this->_debug_request['priority']   = $message->getPriority();
-            $this->_debug_request['ttl']        = $message->getExpiration();
-            $this->_debug_request['delay']      = $producer->getDeliveryDelay();
-            $this->_debug_request['attempt']    = $message->getProperty(self::PROPERTY_ATTEMPT);
-
-            $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request['request_id']);
         }
 
         $this->beforeSend($target, $job, $message);
