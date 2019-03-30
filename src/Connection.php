@@ -730,11 +730,11 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue($exchangeName . '.rpc.callback');
+        $queue = $this->_context->createQueue($exchangeName . ($this->rpcTimeout ? '.' . ($this->rpcTimeout * 2) : '') . '.rpc.callback');
         $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
         $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
         $queue->addFlag(AmqpDestination::FLAG_DURABLE);
-        $queue->setArgument('x-message-ttl', $this->rpcTimeout * 1000 * 2);
+        $queue->setArgument('x-message-ttl', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 2 : null);
         $this->_context->declareQueue($queue);
 
         $message->setReplyTo($queue->getQueueName());
