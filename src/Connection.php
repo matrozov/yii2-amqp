@@ -40,17 +40,14 @@ use matrozov\yii2amqp\jobs\simple\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
 use Yii;
-use yii\base\Application as BaseApp;
 use yii\base\BootstrapInterface;
 use yii\base\Component;
 use yii\base\ErrorException;
-use yii\base\Event;
 use yii\base\InvalidConfigException;
-use yii\console\Application as ConsoleApp;
+use yii\console\Application;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
-use yii\helpers\Json;
 use yii\web\HttpException;
 
 /**
@@ -439,22 +436,22 @@ class Connection extends Component implements BootstrapInterface
 
             $this->_debug_request['app'] = Yii::$app->id;
 
-            Event::on(BaseApp::class, BaseApp::EVENT_BEFORE_REQUEST, function() {
+            Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function() {
                 $this->_debug_request['request_id'] = uniqid('', true);
             });
 
-            Event::on(BaseApp::class, BaseApp::EVENT_BEFORE_ACTION, function() {
+            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function() {
                 $this->_debug_request['action'] = Yii::$app->requestedAction->getUniqueId();
             });
         }
 
-        Event::on(BaseApp::class, BaseApp::EVENT_AFTER_REQUEST, function () {
+        Yii::$app->on(Application::EVENT_AFTER_REQUEST, function () {
             $this->close();
 
             $this->debugFlush();
         });
 
-        Event::on(static::class, static::EVENT_AFTER_EXECUTE, function () {
+        $this->on(static::EVENT_AFTER_EXECUTE, function () {
             $this->debugFlush();
         });
 
@@ -505,7 +502,7 @@ class Connection extends Component implements BootstrapInterface
      */
     public function bootstrap($app)
     {
-        if ((!$app instanceof ConsoleApp)) {
+        if ((!$app instanceof Application)) {
             return;
         }
 
