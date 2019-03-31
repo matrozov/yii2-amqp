@@ -1267,7 +1267,7 @@ class Connection extends Component implements BootstrapInterface
                 'time'              => microtime(true),
                 'request_id'        => $this->_debug_request_id,
                 'request_action'    => $this->_debug_request_action,
-                'job'               => get_class($job),
+                'job'               => is_object($job) ? get_class($job) : null,
                 'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : null,
                 'rpc_request'       => ($job instanceof RpcRequestJob),
                 'rpc_response'      => ($job instanceof RpcResponseJob),
