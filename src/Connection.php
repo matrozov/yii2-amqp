@@ -1232,6 +1232,8 @@ class Connection extends Component implements BootstrapInterface
             $producer->setDeliveryDelay($delay * 1000);
         }
 
+        $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request_id);
+
         $this->beforeSend($target, $job, $message);
 
         $try = 1;
@@ -1288,8 +1290,6 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $this->debug('send', $debug);
-
-            $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request_id);
         }
     }
 
