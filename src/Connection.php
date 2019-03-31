@@ -802,13 +802,12 @@ class Connection extends Component implements BootstrapInterface
                 break;
             }
         }
-        catch (\Exception $exception)
-        {
+        catch (\Exception $exception) {
             if ($this->debugger) {
                 $debug['result']    = $result !== false;
                 $debug['exception'] = $exception->getMessage();
 
-                $this->debug('result', $debug);
+                $this->debug('send_end', $debug);
             }
 
             throw $exception;
@@ -817,7 +816,7 @@ class Connection extends Component implements BootstrapInterface
         if ($this->debugger) {
             $debug['result'] = $result !== false;
 
-            $this->debug('result', $debug);
+            $this->debug('send_end', $debug);
         }
 
         return $result;
@@ -834,7 +833,29 @@ class Connection extends Component implements BootstrapInterface
     {
         $message = $this->createMessage($job);
 
-        $this->sendMessage($target, $job, $message);
+        $debug = [
+            'app_id'     => Yii::$app->id,
+            'time'       => microtime(true),
+            'request_id' => $this->_debug_request_id,
+            'message_id' => $message->getMessageId(),
+        ];
+
+        try {
+            $this->sendMessage($target, $job, $message);
+        }
+        catch (\Exception $exception) {
+            if ($this->debugger) {
+                $debug['exception'] = $exception->getMessage();
+
+                $this->debug('send_end', $debug);
+            }
+
+            throw $exception;
+        }
+
+        if ($this->debugger) {
+            $this->debug('send_end', $debug);
+        }
 
         return true;
     }
@@ -1138,12 +1159,23 @@ class Connection extends Component implements BootstrapInterface
                 $this->_debug_request_id        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $request_id);
                 $this->_debug_parent_message_id = $message->getMessageId();
 
+                if ($this->debugger) {
+                    $debug = [
+                        'app_id'     => Yii::$app->id,
+                        'time'       => microtime(true),
+                        'request_id' => $this->_debug_request_id,
+                        'message_id' => $message->getMessageId(),
+                        'attempt'    => $message->getProperty(self::PROPERTY_ATTEMPT),
+                    ];
+
+                    $this->debug('execute_start', $debug);
+                }
+
                 $debug = [
                     'app_id'     => Yii::$app->id,
                     'time'       => microtime(true),
                     'request_id' => $this->_debug_request_id,
                     'message_id' => $message->getMessageId(),
-                    'attempt'    => $message->getProperty(self::PROPERTY_ATTEMPT),
                 ];
 
                 try {
@@ -1151,19 +1183,16 @@ class Connection extends Component implements BootstrapInterface
                 }
                 catch (\Exception $exception) {
                     if ($this->debugger) {
-                        $debug['exception']  = $exception->getMessage();
-                        $debug['time_spent'] = microtime(true) - $debug['time'];
+                        $debug['exception'] = $exception->getMessage();
 
-                        $this->debug('execute', $debug);
+                        $this->debug('execute_end', $debug);
                     }
 
                     throw $exception;
                 }
 
                 if ($this->debugger) {
-                    $debug['time_spent'] = microtime(true) - $debug['time'];
-
-                    $this->debug('execute', $debug);
+                    $this->debug('execute_end', $debug);
                 }
 
                 $this->_debug_request_id        = $request_id;
@@ -1289,7 +1318,7 @@ class Connection extends Component implements BootstrapInterface
                 $debug['target']      = $target->getQueueName();
             }
 
-            $this->debug('send', $debug);
+            $this->debug('send_start', $debug);
         }
     }
 
