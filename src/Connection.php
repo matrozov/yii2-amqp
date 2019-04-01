@@ -1248,12 +1248,12 @@ class Connection extends Component implements BootstrapInterface
     /**
      * @param int|null $timeout
      *
-     * @throws ErrorException
+     * @return bool
      */
     public function listenWatchdog($timeout = null)
     {
         if ($this->watchdog === false) {
-            return;
+            return true;
         }
 
         $time = @filemtime($this->watchdogPidFile);
@@ -1262,8 +1262,10 @@ class Connection extends Component implements BootstrapInterface
         $timeout = $timeout ?? $this->watchdog;
 
         if (!$time || !$pid || !file_exists('/proc/' . $pid) || (time() - $time > $timeout)) {
-            throw new ErrorException('Listener unhealthy!');
+            return false;
         }
+
+        return true;
     }
 
     /**

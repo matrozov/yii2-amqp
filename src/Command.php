@@ -57,6 +57,9 @@ class Command extends Controller
      */
     public function actionListenWatchdog()
     {
-        $this->connection->listenWatchdog($this->timeout);
+        if (!$this->connection->listenWatchdog($this->timeout)) {
+            echo 'Listener unhealth!';
+            exit(1);
+        }
     }
 }
