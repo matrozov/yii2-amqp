@@ -1252,12 +1252,11 @@ class Connection extends Component implements BootstrapInterface
             return true;
         }
 
-        $pid = exec('pgrep -f amqp/listen');
+        $pid = exec('pgrep -o -f amqp/listen');
 
         $watchdogPidFile = '/tmp/amqp-listen-' . $pid . '.watchdog';
 
         $time = @filemtime($watchdogPidFile);
-        $pid  = @file_get_contents($watchdogPidFile);
 
         $timeout = $timeout ?? $this->watchdog;
 

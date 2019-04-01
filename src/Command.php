@@ -64,5 +64,7 @@ class Command extends Controller
 
             exit(1);
         }
+
+        Console::output('OK');
     }
 }
