@@ -2,8 +2,10 @@
 
 namespace matrozov\yii2amqp;
 
+use Yii;
 use yii\base\ErrorException;
 use yii\console\Controller;
+use yii\helpers\Console;
 
 /**
  * Class Command
@@ -53,12 +55,13 @@ class Command extends Controller
     }
 
     /**
-     * @throws ErrorException
      */
     public function actionListenWatchdog()
     {
         if (!$this->connection->listenWatchdog($this->timeout)) {
-            echo 'Listener unhealth!';
+            Console::error('Watchdog: Listener unhealth!');
+            Yii::error('Watchdog: Listener unhealth!');
+
             exit(1);
         }
     }

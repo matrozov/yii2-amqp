@@ -102,7 +102,6 @@ use yii\web\HttpException;
  * @property Serializer|string $serializer
  *
  * @property false|int      $watchdog
- * @property string         $watchdogPidFile
  *
  * @property Debugger       $debugger
  */
@@ -385,11 +384,6 @@ class Connection extends Component implements BootstrapInterface
      * @var bool
      */
     public $watchdog = false;
-
-    /**
-     * @var string
-     */
-    public $watchdogPidFile = '/run/amqp-listen.pid';
 
 
     /**
@@ -1216,8 +1210,10 @@ class Connection extends Component implements BootstrapInterface
             });
         }
 
+        $watchdogPidFile = '/tmp/amqp-listen-' . getmypid() . '.watchdog';
+
         if ($this->watchdog !== false) {
-            file_put_contents($this->watchdogPidFile, getmypid());
+            touch($watchdogPidFile);
         }
 
         while (true) {
@@ -1236,12 +1232,12 @@ class Connection extends Component implements BootstrapInterface
             }
 
             if ($this->watchdog !== false) {
-                touch($this->watchdogPidFile);
+                touch($watchdogPidFile);
             }
         }
 
         if ($this->watchdog !== false) {
-            unlink($this->watchdogPidFile);
+            unlink($watchdogPidFile);
         }
     }
 
@@ -1256,8 +1252,12 @@ class Connection extends Component implements BootstrapInterface
             return true;
         }
 
-        $time = @filemtime($this->watchdogPidFile);
-        $pid  = @file_get_contents($this->watchdogPidFile);
+        $pid = exec('pgrep -f amqp/listen');
+
+        $watchdogPidFile = '/tmp/amqp-listen-' . $pid . '.watchdog';
+
+        $time = @filemtime($watchdogPidFile);
+        $pid  = @file_get_contents($watchdogPidFile);
 
         $timeout = $timeout ?? $this->watchdog;
 
