@@ -99,7 +99,10 @@ use yii\web\HttpException;
  *
  * @property int|null       $rpcTimeout
  *
- * @property Serializer     $serializer
+ * @property Serializer|string $serializer
+ *
+ * @property false|int      $watchdog
+ * @property string         $watchdogPidFile
  *
  * @property Debugger       $debugger
  */
@@ -376,6 +379,17 @@ class Connection extends Component implements BootstrapInterface
      * @var Serializer
      */
     public $serializer = JsonSerializer::class;
+
+
+    /**
+     * @var bool
+     */
+    public $watchdog = false;
+
+    /**
+     * @var string
+     */
+    public $watchdogPidFile = '/run/amqp-listen.pid';
 
 
     /**
@@ -1202,6 +1216,10 @@ class Connection extends Component implements BootstrapInterface
             });
         }
 
+        if ($this->watchdog !== false) {
+            file_put_contents($this->watchdogPidFile, getmypid());
+        }
+
         while (true) {
             $start = microtime(true);
 
@@ -1216,6 +1234,35 @@ class Connection extends Component implements BootstrapInterface
             if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
                 break;
             }
+
+            if ($this->watchdog !== false) {
+                touch($this->watchdogPidFile);
+            }
+        }
+
+        if ($this->watchdog !== false) {
+            unlink($this->watchdogPidFile);
+        }
+    }
+
+    /**
+     * @param int|null $timeout
+     *
+     * @throws ErrorException
+     */
+    public function listenWatchdog($timeout = null)
+    {
+        if ($this->watchdog === false) {
+            return;
+        }
+
+        $time = @filemtime($this->watchdogPidFile);
+        $pid  = @file_get_contents($this->watchdogPidFile);
+
+        $timeout = $timeout ?? $this->watchdog;
+
+        if (!$time || !$pid || !file_exists('/proc/' . $pid) || (time() - $time > $timeout)) {
+            throw new ErrorException('Listener unhealthy!');
         }
     }
 

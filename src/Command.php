@@ -2,6 +2,7 @@
 
 namespace matrozov\yii2amqp;
 
+use yii\base\ErrorException;
 use yii\console\Controller;
 
 /**
@@ -16,7 +17,7 @@ class Command extends Controller
     /* @var Connection $connection */
     public $connection;
 
-    /* @var int $timeout */
+    /* @var int|null $timeout */
     public $timeout;
 
     /**
@@ -49,5 +50,13 @@ class Command extends Controller
         $queueNames = func_get_args();
 
         $this->connection->listen($queueNames, $this->timeout);
+    }
+
+    /**
+     * @throws ErrorException
+     */
+    public function actionListenWatchdog()
+    {
+        $this->connection->listenWatchdog($this->timeout);
     }
 }
