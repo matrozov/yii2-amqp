@@ -8,9 +8,29 @@ use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Interop\Queue\Exception\InvalidDestinationException;
+use Yii;
 
+/**
+ * Class DelayStrategy
+ * @package matrozov\yii2amqp
+ *
+ * @property Connection $connection
+ */
 class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
 {
+    /* @var Connection $connection */
+    public $connection;
+
+    /**
+     * DelayStrategy constructor.
+     *
+     * @param Connection $connection
+     */
+    public function __construct(Connection $connection)
+    {
+        $this->connection = $connection;
+    }
+
     /**
      * {@inheritdoc}
      * @throws
@@ -54,6 +74,31 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
 
         $context->declareQueue($delayQueue);
 
-        $context->createProducer()->send($delayQueue, $delayMessage);
+        $debug = [
+            'app_id'     => Yii::$app->id,
+            'request_id' => $this->connection->debugRequestId,
+            'message_id' => $message->getMessageId(),
+            'send_in'    => 'delay',
+        ];
+
+        try {
+            $this->connection->sendMessage($delayQueue, null, $delayMessage);
+        }
+        catch (\Exception $exception) {
+            if ($this->connection->debugger) {
+                $debug['time']      = microtime(true);
+                $debug['exception'] = $exception->getMessage();
+
+                $this->connection->debug('send_end', $debug);
+            }
+
+            throw $exception;
+        }
+
+        if ($this->connection->debugger) {
+            $debug['time'] = microtime(true);
+
+            $this->connection->debug('send_end', $debug);
+        }
     }
 }

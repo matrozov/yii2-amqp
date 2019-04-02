@@ -104,6 +104,7 @@ use yii\web\HttpException;
  * @property false|int      $watchdog
  *
  * @property Debugger       $debugger
+ * @property string         $debugRequestId
  */
 class Connection extends Component implements BootstrapInterface
 {
@@ -588,7 +589,7 @@ class Connection extends Component implements BootstrapInterface
         $this->_context = $factory->createContext();
 
         if ($this->_context instanceof DelayStrategyAware) {
-            $this->_context->setDelayStrategy(new DelayStrategy());
+            $this->_context->setDelayStrategy(new DelayStrategy($this));
         }
 
         $this->setup();
@@ -750,21 +751,22 @@ class Connection extends Component implements BootstrapInterface
         $message->setReplyTo($queue->getQueueName());
         $message->setCorrelationId(uniqid('', true));
 
-        $this->sendMessage($target, $job, $message);
-
-        $consumer = $this->_context->createConsumer($queue);
-
-        $timeout = $this->rpcTimeout;
-
         $debug = [
             'app_id'     => Yii::$app->id,
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
+            'send_in'    => 'rpc',
         ];
 
-        $result = null;
-
         try {
+            $this->sendMessage($target, $job, $message);
+
+            $consumer = $this->_context->createConsumer($queue);
+
+            $timeout = $this->rpcTimeout;
+
+            $result = null;
+
             while (true) {
                 $start = microtime(true);
 
@@ -846,6 +848,7 @@ class Connection extends Component implements BootstrapInterface
             'app_id'     => Yii::$app->id,
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
+            'send_in'    => 'simple',
         ];
 
         try {
@@ -907,7 +910,7 @@ class Connection extends Component implements BootstrapInterface
      * @param RpcResponseJob $responseJob
      *
      * @return bool
-     * @throws ErrorException
+     * @throws \Exception
      */
     protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
     {
@@ -918,7 +921,32 @@ class Connection extends Component implements BootstrapInterface
         $responseMessage = $this->createMessage($responseJob);
         $responseMessage->setCorrelationId($message->getCorrelationId());
 
-        $this->sendMessage($queue, $responseJob, $responseMessage);
+        $debug = [
+            'app_id'     => Yii::$app->id,
+            'request_id' => $this->_debug_request_id,
+            'message_id' => $message->getMessageId(),
+            'send_in'    => 'rpc_reply',
+        ];
+
+        try {
+            $this->sendMessage($queue, $responseJob, $responseMessage);
+        }
+        catch (\Exception $exception) {
+            if ($this->debugger) {
+                $debug['time']      = microtime(true);
+                $debug['exception'] = $exception->getMessage();
+
+                $this->debug('send_end', $debug);
+            }
+
+            throw $exception;
+        }
+
+        if ($this->debugger) {
+            $debug['time'] = microtime(true);
+
+            $this->debug('send_end', $debug);
+        }
 
         return true;
     }
@@ -1279,7 +1307,7 @@ class Connection extends Component implements BootstrapInterface
      *
      * @throws
      */
-    protected function sendMessage(AmqpDestination $target, $job, AmqpMessage $message)
+    public function sendMessage(AmqpDestination $target, $job, AmqpMessage $message)
     {
         $producer = $this->_context->createProducer();
 
@@ -1402,7 +1430,32 @@ class Connection extends Component implements BootstrapInterface
 
         $newMessage->setProperty(self::PROPERTY_ATTEMPT, ++$attempt);
 
-        $this->sendMessage($consumer->getQueue(), $job, $newMessage);
+        $debug = [
+            'app_id'     => Yii::$app->id,
+            'request_id' => $this->_debug_request_id,
+            'message_id' => $message->getMessageId(),
+            'send_in'    => 'redelivery',
+        ];
+
+        try {
+            $this->sendMessage($consumer->getQueue(), $job, $newMessage);
+        }
+        catch (\Exception $exception) {
+            if ($this->debugger) {
+                $debug['time']      = microtime(true);
+                $debug['exception'] = $exception->getMessage();
+
+                $this->debug('send_end', $debug);
+            }
+
+            throw $exception;
+        }
+
+        if ($this->debugger) {
+            $debug['time'] = microtime(true);
+
+            $this->debug('send_end', $debug);
+        }
 
         return true;
     }
@@ -1512,10 +1565,18 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @return string
+     */
+    public function getDebugRequestId()
+    {
+        return $this->_debug_request_id;
+    }
+
+    /**
      * @param string $type
      * @param mixed  $content
      */
-    protected function debug($type, $content)
+    public function debug($type, $content)
     {
         if (!$this->debugger) {
             return;
@@ -1524,7 +1585,7 @@ class Connection extends Component implements BootstrapInterface
         $this->debugger->log($type, $content);
     }
 
-    protected function debugFlush()
+    public function debugFlush()
     {
         if (!$this->debugger) {
             return;
