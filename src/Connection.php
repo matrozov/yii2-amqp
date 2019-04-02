@@ -758,7 +758,6 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'     => Yii::$app->id,
-            'time'       => microtime(true),
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
         ];
@@ -812,6 +811,7 @@ class Connection extends Component implements BootstrapInterface
         }
         catch (\Exception $exception) {
             if ($this->debugger) {
+                $debug['time']      = microtime(true);
                 $debug['result']    = $result !== false;
                 $debug['exception'] = $exception->getMessage();
 
@@ -822,6 +822,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         if ($this->debugger) {
+            $debug['time']   = microtime(true);
             $debug['result'] = $result !== false;
 
             $this->debug('send_end', $debug);
@@ -843,7 +844,6 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'     => Yii::$app->id,
-            'time'       => microtime(true),
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
         ];
@@ -853,6 +853,7 @@ class Connection extends Component implements BootstrapInterface
         }
         catch (\Exception $exception) {
             if ($this->debugger) {
+                $debug['time']      = microtime(true);
                 $debug['exception'] = $exception->getMessage();
 
                 $this->debug('send_end', $debug);
@@ -862,6 +863,8 @@ class Connection extends Component implements BootstrapInterface
         }
 
         if ($this->debugger) {
+            $debug['time'] = microtime(true);
+
             $this->debug('send_end', $debug);
         }
 
@@ -1239,6 +1242,8 @@ class Connection extends Component implements BootstrapInterface
         if ($this->watchdog !== false) {
             unlink($watchdogPidFile);
         }
+
+        $this->debugFlush();
     }
 
     /**
@@ -1345,7 +1350,7 @@ class Connection extends Component implements BootstrapInterface
                 'request_id'        => $this->_debug_request_id,
                 'request_action'    => $this->_debug_request_action,
                 'job'               => is_object($job) ? get_class($job) : null,
-                'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : null,
+                'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : '',
                 'rpc_request'       => ($job instanceof RpcRequestJob),
                 'rpc_response'      => ($job instanceof RpcResponseJob),
                 'message_id'        => $message->getMessageId(),

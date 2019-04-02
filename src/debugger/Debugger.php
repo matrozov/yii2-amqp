@@ -17,7 +17,7 @@ class Debugger extends Component
     public $targets = [];
 
     /**
-     * @throws \yii\base\InvalidConfigException
+     * @throws InvalidConfigException
      */
     public function init()
     {
