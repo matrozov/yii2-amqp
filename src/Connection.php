@@ -458,6 +458,10 @@ class Connection extends Component implements BootstrapInterface
             Yii::$app->on(Application::EVENT_BEFORE_ACTION, function() {
                 $this->_debug_request_action = Yii::$app->requestedAction->getUniqueId();
             });
+
+            Yii::$app->on(Application::EVENT_AFTER_ACTION, function() {
+                Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
+            });
         }
 
         Yii::$app->on(Application::EVENT_AFTER_REQUEST, function () {
