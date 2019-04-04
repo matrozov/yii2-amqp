@@ -1621,7 +1621,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = ArrayHelper::merge($debug, $fields);
 
-        $this->debug('send_start', $debug);
+        $this->debug('send_end', $debug);
     }
 
     /**
