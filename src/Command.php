@@ -3,7 +3,6 @@
 namespace matrozov\yii2amqp;
 
 use Yii;
-use yii\base\ErrorException;
 use yii\console\Controller;
 use yii\helpers\Console;
 

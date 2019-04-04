@@ -7,14 +7,17 @@ use Enqueue\AmqpBunny\AmqpConnectionFactory as AmqpBunnyConnectionFactory;
 use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
+use Exception;
 use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpMessage;
+use Interop\Amqp\AmqpProducer;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Interop\Amqp\Impl\AmqpBind;
+use Interop\Queue\Exception\DeliveryDelayNotSupportedException;
 use matrozov\yii2amqp\debugger\Debugger;
 use matrozov\yii2amqp\events\ExecuteEvent;
 use matrozov\yii2amqp\events\JobEvent;
@@ -39,6 +42,7 @@ use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\simple\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
+use Throwable;
 use Yii;
 use yii\base\BootstrapInterface;
 use yii\base\Component;
@@ -104,7 +108,6 @@ use yii\web\HttpException;
  * @property false|int      $watchdog
  *
  * @property Debugger       $debugger
- * @property string         $debugRequestId
  */
 class Connection extends Component implements BootstrapInterface
 {
@@ -751,15 +754,16 @@ class Connection extends Component implements BootstrapInterface
         $message->setReplyTo($queue->getQueueName());
         $message->setCorrelationId(uniqid('', true));
 
-        $debug = [
-            'app_id'     => Yii::$app->id,
-            'request_id' => $this->_debug_request_id,
-            'message_id' => $message->getMessageId(),
-            'send_in'    => 'rpc',
-        ];
+        $producer = $this->_context->createProducer();
+
+        $this->prepareMessage($producer, $message, $job);
+
+        $pair_id = $this->debugSendStart($target, $message, 'rpc', [
+            'job' => get_class($job),
+        ]);
 
         try {
-            $this->sendMessage($target, $job, $message);
+            $this->sendMessage($producer, $target, $message, $job);
 
             $consumer = $this->_context->createConsumer($queue);
 
@@ -811,24 +815,13 @@ class Connection extends Component implements BootstrapInterface
                 break;
             }
         }
-        catch (\Exception $exception) {
-            if ($this->debugger) {
-                $debug['time']      = microtime(true);
-                $debug['result']    = $result !== false;
-                $debug['exception'] = $exception->getMessage();
-
-                $this->debug('send_end', $debug);
-            }
+        catch (Exception $exception) {
+            $this->debugSendEnd($pair_id, $exception);
 
             throw $exception;
         }
 
-        if ($this->debugger) {
-            $debug['time']   = microtime(true);
-            $debug['result'] = $result !== false;
-
-            $this->debug('send_end', $debug);
-        }
+        $this->debugSendEnd($pair_id);
 
         return $result;
     }
@@ -844,32 +837,22 @@ class Connection extends Component implements BootstrapInterface
     {
         $message = $this->createMessage($job);
 
-        $debug = [
-            'app_id'     => Yii::$app->id,
-            'request_id' => $this->_debug_request_id,
-            'message_id' => $message->getMessageId(),
-            'send_in'    => 'simple',
-        ];
+        $producer = $this->_context->createProducer();
+
+        $this->prepareMessage($producer, $message, $job);
+
+        $pair_id = $this->debugSendStart($target, $message, 'simple');
 
         try {
-            $this->sendMessage($target, $job, $message);
+            $this->sendMessage($producer, $target, $message, $job);
         }
-        catch (\Exception $exception) {
-            if ($this->debugger) {
-                $debug['time']      = microtime(true);
-                $debug['exception'] = $exception->getMessage();
-
-                $this->debug('send_end', $debug);
-            }
+        catch (Exception $exception) {
+            $this->debugSendEnd($pair_id, $exception);
 
             throw $exception;
         }
 
-        if ($this->debugger) {
-            $debug['time'] = microtime(true);
-
-            $this->debug('send_end', $debug);
-        }
+        $this->debugSendEnd($pair_id);
 
         return true;
     }
@@ -910,7 +893,10 @@ class Connection extends Component implements BootstrapInterface
      * @param RpcResponseJob $responseJob
      *
      * @return bool
-     * @throws \Exception
+     * @throws DeliveryDelayNotSupportedException
+     * @throws ErrorException
+     * @throws \Interop\Queue\Exception
+     * @throws Exception
      */
     protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
     {
@@ -921,32 +907,24 @@ class Connection extends Component implements BootstrapInterface
         $responseMessage = $this->createMessage($responseJob);
         $responseMessage->setCorrelationId($message->getCorrelationId());
 
-        $debug = [
-            'app_id'     => Yii::$app->id,
-            'request_id' => $this->_debug_request_id,
-            'message_id' => $message->getMessageId(),
-            'send_in'    => 'rpc_reply',
-        ];
+        $producer = $this->_context->createProducer();
+
+        $this->prepareMessage($producer, $responseMessage, $responseJob);
+
+        $pair_id = $this->debugSendStart($queue, $responseMessage, 'reply', [
+            'reply_to' => $message->getMessageId(),
+        ]);
 
         try {
-            $this->sendMessage($queue, $responseJob, $responseMessage);
+            $this->sendMessage($producer, $queue, $responseMessage, $responseJob);
         }
-        catch (\Exception $exception) {
-            if ($this->debugger) {
-                $debug['time']      = microtime(true);
-                $debug['exception'] = $exception->getMessage();
-
-                $this->debug('send_end', $debug);
-            }
+        catch (Exception $exception) {
+            $this->debugSendEnd($pair_id, $exception);
 
             throw $exception;
         }
 
-        if ($this->debugger) {
-            $debug['time'] = microtime(true);
-
-            $this->debug('send_end', $debug);
-        }
+        $this->debugSendEnd($pair_id);
 
         return true;
     }
@@ -979,7 +957,7 @@ class Connection extends Component implements BootstrapInterface
 
                 $this->replyRpcMessage($message, $responseJob);
             }
-            catch (\Exception $exception) {
+            catch (Exception $exception) {
                 $responseJob = null;
 
                 $exceptionInt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
@@ -987,7 +965,7 @@ class Connection extends Component implements BootstrapInterface
 
             $this->afterExecute($job, $responseJob, $message, $consumer);
         }
-        catch (\Exception $exception) {
+        catch (Exception $exception) {
             if (!$exceptionInt) {
                 $exceptionExt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
             }
@@ -1001,15 +979,17 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param \Exception    $exception
+     * @param Exception     $exception
      * @param RpcExecuteJob $job
      * @param AmqpMessage   $message
      * @param AmqpConsumer  $consumer
      *
-     * @return \Exception|null
-     * @throws \Exception
+     * @return Exception|null
+     * @throws DeliveryDelayNotSupportedException
+     * @throws ErrorException
+     * @throws \Interop\Queue\Exception
      */
-    protected function handleRpcMessageException(\Exception $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    protected function handleRpcMessageException(Exception $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         if (($exception instanceof HttpException) || ($exception instanceof RpcTransferableException)) {
             $responseJob = new RpcExceptionResponseJob($exception);
@@ -1063,13 +1043,13 @@ class Connection extends Component implements BootstrapInterface
             try {
                 $job->execute($this, $message);
             }
-            catch (\Exception $exception) {
+            catch (Exception $exception) {
                 $exceptionInt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
             }
 
             $this->afterExecute($job, null, $message, $consumer);
         }
-        catch (\Exception $exception) {
+        catch (Exception $exception) {
             if (!$exceptionInt) {
                 $exceptionExt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
             }
@@ -1083,15 +1063,16 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param \Exception   $exception
+     * @param Exception    $exception
      * @param ExecuteJob   $job
      * @param AmqpMessage  $message
      * @param AmqpConsumer $consumer
      *
-     * @return \Exception|null
-     * @throws \Exception
+     * @return Exception|null
+     * @throws ErrorException
+     * @throws \Interop\Queue\Exception
      */
-    protected function handleSimpleMessageException(\Exception $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    protected function handleSimpleMessageException(Exception $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         if ($exception instanceof HttpException) {
             Yii::warning($exception->getMessage());
@@ -1141,7 +1122,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
         }
-        catch (\Exception $exception) {
+        catch (Exception $exception) {
             $this->redelivery(null, $message, $consumer, $exception);
 
             $consumer->acknowledge($message);
@@ -1193,49 +1174,18 @@ class Connection extends Component implements BootstrapInterface
             $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
 
             $subscriptionConsumer->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
-                $request_id = $this->_debug_request_id;
-
-                $this->_debug_request_id        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID, $request_id);
-                $this->_debug_parent_message_id = $message->getMessageId();
-
-                if ($this->debugger) {
-                    $debug = [
-                        'app_id'     => Yii::$app->id,
-                        'time'       => microtime(true),
-                        'request_id' => $this->_debug_request_id,
-                        'message_id' => $message->getMessageId(),
-                        'attempt'    => $message->getProperty(self::PROPERTY_ATTEMPT),
-                    ];
-
-                    $this->debug('execute_start', $debug);
-                }
-
-                $debug = [
-                    'app_id'     => Yii::$app->id,
-                    'time'       => microtime(true),
-                    'request_id' => $this->_debug_request_id,
-                    'message_id' => $message->getMessageId(),
-                ];
+                $pair_id = $this->debugExecuteStart($consumer, $message);
 
                 try {
                     $this->handleMessage($message, $consumer);
                 }
-                catch (\Exception $exception) {
-                    if ($this->debugger) {
-                        $debug['exception'] = $exception->getMessage();
-
-                        $this->debug('execute_end', $debug);
-                    }
+                catch (Exception $exception) {
+                    $this->debugExecuteEnd($pair_id, $exception);
 
                     throw $exception;
                 }
 
-                if ($this->debugger) {
-                    $this->debug('execute_end', $debug);
-                }
-
-                $this->_debug_request_id        = $request_id;
-                $this->_debug_parent_message_id = null;
+                $this->debugExecuteEnd($pair_id);
 
                 return true;
             });
@@ -1301,16 +1251,14 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param AmqpDestination $target
-     * @param BaseJob|null    $job
-     * @param AmqpMessage     $message
+     * @param AmqpMessage  $message
+     * @param AmqpProducer $producer
+     * @param BaseJob|null $job
      *
-     * @throws
+     * @throws DeliveryDelayNotSupportedException
      */
-    public function sendMessage(AmqpDestination $target, $job, AmqpMessage $message)
+    public function prepareMessage(AmqpProducer $producer, AmqpMessage $message, $job = null)
     {
-        $producer = $this->_context->createProducer();
-
         if ($message->getDeliveryMode() === null) {
             if ($job instanceof PersistentJob) {
                 $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
@@ -1342,8 +1290,24 @@ class Connection extends Component implements BootstrapInterface
             $producer->setDeliveryDelay($delay * 1000);
         }
 
-        $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request_id);
+        if ($this->debugger) {
+            $message->setProperty(self::PROPERTY_DEBUG_REQUEST_ID, $this->_debug_request_id);
+        }
+    }
 
+    /**
+     * @param AmqpDestination $target
+     * @param BaseJob|null    $job
+     * @param AmqpMessage     $message
+     *
+     * @param AmqpProducer    $producer
+     *
+     * @throws ErrorException
+     * @throws InvalidConfigException
+     * @throws \Interop\Queue\Exception
+     */
+    public function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
+    {
         $this->beforeSend($target, $job, $message);
 
         $try = 1;
@@ -1352,7 +1316,7 @@ class Connection extends Component implements BootstrapInterface
             try {
                 $producer->send($target, $message);
             }
-            catch (\Exception $e) {
+            catch (Exception $e) {
                 Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "' . $e->getMessage() . '", try: ' . $try . '/3', 0, 1, __FILE__, __LINE__, $e));
 
                 $try++;
@@ -1370,47 +1334,18 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $this->afterSend($target, $job, $message);
-
-        if ($this->debugger) {
-            $debug = [
-                'app_id'            => Yii::$app->id,
-                'time'              => microtime(true),
-                'request_id'        => $this->_debug_request_id,
-                'request_action'    => $this->_debug_request_action,
-                'job'               => is_object($job) ? get_class($job) : null,
-                'jobName'           => ($job instanceof RequestNamedJob) ? $job::jobName() : '',
-                'rpc_request'       => ($job instanceof RpcRequestJob),
-                'rpc_response'      => ($job instanceof RpcResponseJob),
-                'message_id'        => $message->getMessageId(),
-                'parent_message_id' => $this->_debug_parent_message_id,
-                'attempt'           => $message->getProperty(self::PROPERTY_ATTEMPT),
-                'persistent'        => $message->getDeliveryMode() == AmqpMessage::DELIVERY_MODE_PERSISTENT,
-                'priority'          => $message->getPriority(),
-                'ttl'               => $message->getExpiration(),
-                'delay'             => $producer->getDeliveryDelay(),
-            ];
-
-            if ($target instanceof AmqpTopic) {
-                $debug['target_type'] = 'topic';
-                $debug['target']      = $target->getTopicName();
-            }
-            elseif ($target instanceof AmqpQueue) {
-                $debug['target_type'] = 'queue';
-                $debug['target']      = $target->getQueueName();
-            }
-
-            $this->debug('send_start', $debug);
-        }
     }
 
     /**
-     * @param BaseJob|null          $job
-     * @param AmqpMessage           $message
-     * @param AmqpConsumer          $consumer
-     * @param \Exception|\Throwable $error
+     * @param BaseJob|null        $job
+     * @param AmqpMessage         $message
+     * @param AmqpConsumer        $consumer
+     * @param Exception|Throwable $error
      *
      * @return bool
-     * @throws \Exception
+     * @throws ErrorException
+     * @throws \Interop\Queue\Exception
+     * @throws Exception
      */
     protected function redelivery($job, AmqpMessage $message, AmqpConsumer $consumer, $error)
     {
@@ -1430,32 +1365,24 @@ class Connection extends Component implements BootstrapInterface
 
         $newMessage->setProperty(self::PROPERTY_ATTEMPT, ++$attempt);
 
-        $debug = [
-            'app_id'     => Yii::$app->id,
-            'request_id' => $this->_debug_request_id,
-            'message_id' => $message->getMessageId(),
-            'send_in'    => 'redelivery',
-        ];
+        $producer = $this->_context->createProducer();
+
+        $this->prepareMessage($producer, $newMessage, $job);
+
+        $pair_id = $this->debugSendStart($consumer->getQueue(), $newMessage,  'redelivery', [
+            'redelivery_to' => $message->getMessageId(),
+        ]);
 
         try {
-            $this->sendMessage($consumer->getQueue(), $job, $newMessage);
+            $this->sendMessage($producer, $consumer->getQueue(), $newMessage, $job);
         }
-        catch (\Exception $exception) {
-            if ($this->debugger) {
-                $debug['time']      = microtime(true);
-                $debug['exception'] = $exception->getMessage();
-
-                $this->debug('send_end', $debug);
-            }
+        catch (Exception $exception) {
+            $this->debugSendEnd($pair_id, $exception);
 
             throw $exception;
         }
 
-        if ($this->debugger) {
-            $debug['time'] = microtime(true);
-
-            $this->debug('send_end', $debug);
-        }
+        $this->debugSendEnd($pair_id);
 
         return true;
     }
@@ -1565,18 +1492,143 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @return string
+     * @param AmqpConsumer $consumer
+     * @param AmqpMessage  $message
+     *
+     * @return bool|string
      */
-    public function getDebugRequestId()
+    protected function debugExecuteStart(AmqpConsumer $consumer, AmqpMessage $message)
     {
-        return $this->_debug_request_id;
+        if (!$this->debugger) {
+            return false;
+        }
+
+        $this->_debug_request_id        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID);
+        $this->_debug_parent_message_id = $message->getMessageId();
+
+        $pair_id = uniqid('', true);
+
+        $debug = [
+            'app_id'     => Yii::$app->id,
+            'time'       => microtime(true),
+            'request_id' => $this->_debug_request_id,
+            'message_id' => $message->getMessageId(),
+            'pair_id'    => $pair_id,
+            'queue'      => $consumer->getQueue()->getQueueName(),
+        ];
+
+        $this->debug('execute_start', $debug);
+
+        return $pair_id;
+    }
+
+    /**
+     * @param string         $pair_id
+     * @param Exception|null $exception
+     */
+    protected function debugExecuteEnd(string $pair_id, Exception $exception = null)
+    {
+        if (!$this->debugger) {
+            return;
+        }
+
+        $debug = [
+            'app_id'     => Yii::$app->id,
+            'time'       => microtime(true),
+            'request_id' => $this->_debug_request_id,
+            'pair_id'    => $pair_id,
+            'success'    => $exception === null,
+            'exception'  => $exception ? $exception->getMessage() : '',
+        ];
+
+        $this->debug('execute_end', $debug);
+
+        $this->_debug_parent_message_id = null;
+    }
+
+    /**
+     * @param AmqpDestination $destination
+     * @param AmqpMessage     $message
+     * @param string          $sub_type
+     * @param array           $fields
+     *
+     * @return bool|string
+     * @throws ErrorException
+     */
+    protected function debugSendStart(AmqpDestination $destination, AmqpMessage $message, string $sub_type, array $fields = [])
+    {
+        if (!$this->debugger) {
+            return false;
+        }
+
+        if ($destination instanceof AmqpTopic) {
+            $target_type = 'topic';
+            $target      = $destination->getTopicName();
+        }
+        elseif ($destination instanceof AmqpQueue) {
+            $target_type = 'queue';
+            $target      = $destination->getQueueName();
+        }
+        else {
+            throw new ErrorException('Unknown destination type');
+        }
+
+        $pair_id = uniqid('', true);
+
+        $debug = [
+            'app_id'      => Yii::$app->id,
+            'time'        => microtime(true),
+            'request_id'  => $this->_debug_request_id,
+            'message_id'  => $message->getMessageId(),
+            'pair_id'     => $pair_id,
+            'sub_type'    => $sub_type,
+            'target_type' => $target_type,
+            'target'      => $target,
+            'message'     => [
+                'headers'    => $message->getHeaders(),
+                'properties' => $message->getProperties(),
+                'body'       => $message->getBody(),
+            ],
+        ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
+
+        $this->debug('send_start', $debug);
+
+        return $pair_id;
+    }
+
+    /**
+     * @param string         $pair_id
+     * @param Exception|null $exception
+     * @param array          $fields
+     *
+     */
+    protected function debugSendEnd(string $pair_id, Exception $exception = null, array $fields = [])
+    {
+        if (!$this->debugger) {
+            return;
+        }
+
+        $debug = [
+            'app_id'      => Yii::$app->id,
+            'time'        => microtime(true),
+            'request_id'  => $this->_debug_request_id,
+            'pair_id'     => $pair_id,
+            'success'     => $exception === null,
+            'exception'   => $exception ? $exception->getMessage() : '',
+        ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
+
+        $this->debug('send_start', $debug);
     }
 
     /**
      * @param string $type
      * @param mixed  $content
      */
-    public function debug($type, $content)
+    protected function debug($type, $content)
     {
         if (!$this->debugger) {
             return;

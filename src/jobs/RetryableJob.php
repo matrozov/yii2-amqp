@@ -2,6 +2,9 @@
 
 namespace matrozov\yii2amqp\jobs;
 
+use Exception;
+use Throwable;
+
 /**
  * Interface RetryableJob
  * @package matrozov\yii2amqp\jobs
@@ -9,8 +12,8 @@ namespace matrozov\yii2amqp\jobs;
 interface RetryableJob
 {
     /**
-     * @param int                   $attempt
-     * @param \Exception|\Throwable $error
+     * @param int                  $attempt
+     * @param Exception|Throwable $error
      *
      * @return bool
      */

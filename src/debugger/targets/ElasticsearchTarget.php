@@ -2,6 +2,8 @@
 
 namespace matrozov\yii2amqp\debugger\targets;
 
+use stdClass;
+use yii\base\InvalidConfigException;
 use yii\di\Instance;
 use yii\elasticsearch\Connection;
 use matrozov\yii2amqp\debugger\Target;
@@ -29,7 +31,7 @@ class ElasticsearchTarget extends Target
 
     /**
      * {@inheritdoc}
-     * @throws \yii\base\InvalidConfigException
+     * @throws InvalidConfigException
      */
     public function init()
     {
@@ -62,7 +64,7 @@ class ElasticsearchTarget extends Target
 
         return implode(PHP_EOL, [
             Json::encode([
-                'index' => new \stdClass(),
+                'index' => new stdClass(),
             ]),
             Json::encode($result),
         ]);

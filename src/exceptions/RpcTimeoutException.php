@@ -2,6 +2,7 @@
 
 namespace matrozov\yii2amqp\exceptions;
 
+use Exception;
 use yii\web\HttpException;
 
 /**
@@ -15,9 +16,9 @@ class RpcTimeoutException extends HttpException
      *
      * @param string|null     $message
      * @param int             $code
-     * @param \Exception|null $previous
+     * @param Exception|null $previous
      */
-    public function __construct($message = null, $code = 0, \Exception $previous = null)
+    public function __construct($message = null, $code = 0, Exception $previous = null)
     {
         parent::__construct(504, $message, $code, $previous);
     }

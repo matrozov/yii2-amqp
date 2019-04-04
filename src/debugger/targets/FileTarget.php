@@ -4,6 +4,7 @@ namespace matrozov\yii2amqp\debugger\targets;
 
 use matrozov\yii2amqp\debugger\Target;
 use Yii;
+use yii\base\Exception;
 use yii\base\InvalidConfigException;
 use yii\helpers\FileHelper;
 use yii\helpers\VarDumper;
@@ -76,7 +77,7 @@ class FileTarget extends Target
 
     /**
      * @throws InvalidConfigException
-     * @throws \yii\base\Exception
+     * @throws Exception
      */
     public function flush()
     {
