@@ -396,13 +396,13 @@ class Connection extends Component implements BootstrapInterface
     public $debugger = null;
 
     /**
-     * @var string      $_debug_request_id
-     * @var string      $_debug_request_action
-     * @var string|null $_debug_parent_message_id
+     * @var string $_debug_request_id
+     * @var string $_debug_request_action
+     * @var string $_debug_parent_message_id
      */
-    protected $_debug_request_id;
-    protected $_debug_request_action;
-    protected $_debug_parent_message_id;
+    protected $_debug_request_id        = '';
+    protected $_debug_request_action    = '';
+    protected $_debug_parent_message_id = '';
 
     /**
      * @var AmqpContext
@@ -1543,7 +1543,7 @@ class Connection extends Component implements BootstrapInterface
 
         $this->debug('execute_end', $debug);
 
-        $this->_debug_parent_message_id = null;
+        $this->_debug_parent_message_id = '';
     }
 
     /**
@@ -1576,15 +1576,17 @@ class Connection extends Component implements BootstrapInterface
         $pair_id = uniqid('', true);
 
         $debug = [
-            'app_id'      => Yii::$app->id,
-            'time'        => microtime(true),
-            'request_id'  => $this->_debug_request_id,
-            'message_id'  => $message->getMessageId(),
-            'pair_id'     => $pair_id,
-            'sub_type'    => $sub_type,
-            'target_type' => $target_type,
-            'target'      => $target,
-            'message'     => [
+            'app_id'         => Yii::$app->id,
+            'time'           => microtime(true),
+            'request_id'     => $this->_debug_request_id,
+            'request_action' => empty($this->_debug_parent_message_id) ? $this->_debug_request_action : '',
+            'parent_id'      => $this->_debug_parent_message_id,
+            'message_id'     => $message->getMessageId(),
+            'pair_id'        => $pair_id,
+            'sub_type'       => $sub_type,
+            'target_type'    => $target_type,
+            'target'         => $target,
+            'message'        => [
                 'headers'    => $message->getHeaders(),
                 'properties' => $message->getProperties(),
                 'body'       => $message->getBody(),
