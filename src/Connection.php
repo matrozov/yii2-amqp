@@ -53,6 +53,7 @@ use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use yii\web\HttpException;
+use yii\web\Request;
 
 /**
  * Class Connection
@@ -459,9 +460,11 @@ class Connection extends Component implements BootstrapInterface
                 $this->_debug_request_action = Yii::$app->requestedAction->getUniqueId();
             });
 
-            Yii::$app->on(Application::EVENT_AFTER_ACTION, function() {
-                Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
-            });
+            if (Yii::$app->request instanceof Request) {
+                Yii::$app->on(Application::EVENT_AFTER_ACTION, function() {
+                    Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
+                });
+            }
         }
 
         Yii::$app->on(Application::EVENT_AFTER_REQUEST, function () {
