@@ -1544,9 +1544,17 @@ class Connection extends Component implements BootstrapInterface
             'time'       => microtime(true),
             'request_id' => $this->_debug_request_id,
             'pair_id'    => $pair_id,
-            'success'    => $exception === null,
-            'exception'  => $exception ? $exception->getMessage() : '',
         ];
+
+        if ($exception) {
+            $debug['exception'] = [
+                'message' => $exception->getMessage(),
+                'code'    => $exception->getCode(),
+                'file'    => $exception->getFile(),
+                'line'    => $exception->getLine(),
+                'trace'   => $exception->getTraceAsString(),
+            ];
+        }
 
         $this->debug('execute_end', $debug);
 
@@ -1624,9 +1632,17 @@ class Connection extends Component implements BootstrapInterface
             'time'        => microtime(true),
             'request_id'  => $this->_debug_request_id,
             'pair_id'     => $pair_id,
-            'success'     => $exception === null,
-            'exception'   => $exception ? $exception->getMessage() : '',
         ];
+
+        if ($exception) {
+            $debug['exception'] = [
+                'message' => $exception->getMessage(),
+                'code'    => $exception->getCode(),
+                'file'    => $exception->getFile(),
+                'line'    => $exception->getLine(),
+                'trace'   => $exception->getTraceAsString(),
+            ];
+        }
 
         $debug = ArrayHelper::merge($debug, $fields);
 
