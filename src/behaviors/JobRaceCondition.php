@@ -3,7 +3,7 @@
 namespace matrozov\yii2amqp\behaviors;
 
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
+use matrozov\yii2amqp\exceptions\JobRaceConditionException;
 use matrozov\yii2amqp\jobs\RequestNamedJob;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use yii\base\Behavior;
@@ -122,7 +122,7 @@ class JobRaceCondition extends Behavior
 
     /**
      * @throws ErrorException
-     * @throws NeedRedeliveryException
+     * @throws JobRaceConditionException
      */
     public function beforeExecute()
     {
@@ -134,7 +134,7 @@ class JobRaceCondition extends Behavior
 
         foreach ($this->_locks as $lock) {
             if (!$this->mutex->acquire($lock, (int)$this->timeout)) {
-                throw new NeedRedeliveryException();
+                throw new JobRaceConditionException();
             }
         }
     }
