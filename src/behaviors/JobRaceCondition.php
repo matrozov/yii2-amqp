@@ -76,35 +76,28 @@ class JobRaceCondition extends Behavior
      */
     protected function getLockHashes()
     {
-        $attr_lol = [];
+        $chain = [];
 
         foreach ($this->attributes as $attribute) {
-            if (!is_array($attribute)) {
-                foreach ($attr_lol as &$attr_list) {
-                    $attr_list[] = $attribute;
-                }
-
-                continue;
-            }
-
-            $attr_lol_new = [];
+            $attribute = (array) $attribute;
+            $chain_new = [];
 
             foreach ($attribute as $attr) {
-                $attr_lol_tmp = $attr_lol;
-
-                foreach ($attr_lol_tmp as &$attr_list) {
-                    $attr_list[] = $attr;
+                if (empty($chain)) {
+                    $chain_new[] = [$attr];
+                } else {
+                    foreach ($chain as $key => $item) {
+                        $chain_new[] = array_merge($item, [$attr]);
+                    }
                 }
-
-                $attr_lol_new += $attr_lol_tmp;
             }
 
-            $attr_lol = $attr_lol_new;
+            $chain = $chain_new;
         }
 
         $hashes = [];
 
-        foreach ($attr_lol as $idx => $attr_list) {
+        foreach ($chain as $idx => $attr_list) {
             if ($this->owner instanceof RequestNamedJob) {
                 /** @var RequestNamedJob $job */
                 $job = $this->owner;
