@@ -19,6 +19,10 @@ use yii\mutex\Mutex;
  * @property Mutex|array|string $mutex
  * @property int|null           $timeout
  * @property array              $attributes
+ *                                         ['attr_1']                       =>          => [['attr_1']]
+ *                                         ['attr_1', 'attr_2']             => AND      => [['attr_1', 'attr_2']]
+ *                                         [['attr_1', 'attr_2']]           => OR       => [['attr_1'], ['attr_2']]
+ *                                         ['attr_1', ['attr_2', 'attr_3']] => AND + OR => [['attr_1', 'attr_2'], ['attr_1', 'attr_3']]
  */
 class JobRaceCondition extends Behavior
 {
