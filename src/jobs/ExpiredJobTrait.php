@@ -5,6 +5,8 @@ namespace matrozov\yii2amqp\jobs;
 /**
  * Trait ExpiredJobTrait
  * @package matrozov\yii2amqp\jobs
+ *
+ * @property float|int|null $ttl
  */
 trait ExpiredJobTrait
 {

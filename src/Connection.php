@@ -59,6 +59,8 @@ use yii\web\Request;
  * Class Connection
  * @package matrozov\yii2amqp
  *
+ * @property AmqpContext    $context
+ *
  * @property string|null    $dsn
  * @property string|null    $host
  * @property int|null       $port
@@ -697,6 +699,17 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @return AmqpContext
+     * @throws InvalidConfigException
+     */
+    public function getContext(): AmqpContext
+    {
+        $this->open();
+
+        return $this->_context;
+    }
+
+    /**
      * @param BaseJob $job
      *
      * @return AmqpMessage
@@ -1170,33 +1183,30 @@ class Connection extends Component implements BootstrapInterface
         if (empty($queueNames)) {
             $queueNames = array_keys($this->_queues);
         }
+        else {
+            foreach ((array)$queueNames as $queueName) {
+                if (!isset($this->_queues[$queueName])) {
+                    throw new ErrorException('Queue config `' . $queueName . '` not found!');
+                }
+            }
+        }
 
-        $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
+        $callback = function(AmqpMessage $message, AmqpConsumer $consumer) {
+            $pair_id = $this->debugExecuteStart($consumer, $message);
 
-        foreach ((array)$queueNames as $queueName) {
-            if (!isset($this->_queues[$queueName])) {
-                throw new ErrorException('Queue config `' . $queueName . '` not found!');
+            try {
+                $this->handleMessage($message, $consumer);
+            }
+            catch (Exception $exception) {
+                $this->debugExecuteEnd($pair_id, $exception);
+
+                throw $exception;
             }
 
-            $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
+            $this->debugExecuteEnd($pair_id);
 
-            $subscriptionConsumer->subscribe($consumer, function(AmqpMessage $message, AmqpConsumer $consumer) {
-                $pair_id = $this->debugExecuteStart($consumer, $message);
-
-                try {
-                    $this->handleMessage($message, $consumer);
-                }
-                catch (Exception $exception) {
-                    $this->debugExecuteEnd($pair_id, $exception);
-
-                    throw $exception;
-                }
-
-                $this->debugExecuteEnd($pair_id);
-
-                return true;
-            });
-        }
+            return true;
+        };
 
         $watchdogPidFile = '/tmp/amqp-listen-' . getmypid() . '.watchdog';
 
@@ -1204,12 +1214,44 @@ class Connection extends Component implements BootstrapInterface
             touch($watchdogPidFile);
         }
 
+        $activeTimeout = time();
+
+        $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
+
+        foreach ($queueNames as $queueName) {
+            $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
+
+            $subscriptionConsumer->subscribe($consumer, $callback);
+        }
+
         while (true) {
             $start = microtime(true);
 
             $loopTimeout = max(5, (int)$timeout);
 
+            $active = false;
+
             $subscriptionConsumer->consume($loopTimeout * 1000);
+
+            if ($active) {
+                $activeTimeout = time();
+            }
+
+            if (time() - $activeTimeout > 60 * 5) {
+                $subscriptionConsumer->unsubscribeAll();
+
+                $this->reopen();
+
+                $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
+
+                foreach ($queueNames as $queueName) {
+                    $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
+
+                    $subscriptionConsumer->subscribe($consumer, $callback);
+                }
+
+                $activeTimeout = time();
+            }
 
             if ($timeout !== null) {
                 $timeout -= microtime(true) - $start;
@@ -1227,6 +1269,8 @@ class Connection extends Component implements BootstrapInterface
         if ($this->watchdog !== false) {
             unlink($watchdogPidFile);
         }
+
+        $this->close();
 
         $this->debugFlush();
     }
@@ -1264,7 +1308,7 @@ class Connection extends Component implements BootstrapInterface
      *
      * @throws DeliveryDelayNotSupportedException
      */
-    public function prepareMessage(AmqpProducer $producer, AmqpMessage $message, $job = null)
+    protected function prepareMessage(AmqpProducer $producer, AmqpMessage $message, $job = null)
     {
         if ($message->getDeliveryMode() === null) {
             if ($job instanceof PersistentJob) {
@@ -1313,7 +1357,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws InvalidConfigException
      * @throws \Interop\Queue\Exception
      */
-    public function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
+    protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
     {
         $this->beforeSend($target, $job, $message);
 

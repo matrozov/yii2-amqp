@@ -10,5 +10,8 @@ use matrozov\yii2amqp\jobs\BaseJob;
  */
 interface RequestJob extends BaseJob
 {
-    public static function exchangeName();
+    /**
+     * @return string
+     */
+    public static function exchangeName(): string;
 }

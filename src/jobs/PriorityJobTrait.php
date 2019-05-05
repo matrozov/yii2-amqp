@@ -5,6 +5,8 @@ namespace matrozov\yii2amqp\jobs;
 /**
  * Trait PriorityJobTrait
  * @package matrozov\yii2amqp\jobs
+ *
+ * @property int|null $priority
  */
 trait PriorityJobTrait
 {

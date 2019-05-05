@@ -5,6 +5,8 @@ namespace matrozov\yii2amqp\jobs;
 /**
  * Trait DelayedJobTrait
  * @package matrozov\yii2amqp\jobs
+ *
+ * @property float|int|null $delay
  */
 trait DelayedJobTrait
 {
