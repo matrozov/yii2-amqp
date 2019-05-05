@@ -13,5 +13,5 @@ interface RequestJob extends BaseJob
     /**
      * @return string
      */
-    public static function exchangeName(): string;
+    public static function exchangeName();
 }
