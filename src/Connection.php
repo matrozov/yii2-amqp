@@ -1191,7 +1191,9 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
-        $callback = function(AmqpMessage $message, AmqpConsumer $consumer) {
+        $active = false;
+
+        $callback = function(AmqpMessage $message, AmqpConsumer $consumer) use (&$active) {
             $pair_id = $this->debugExecuteStart($consumer, $message);
 
             try {
@@ -1204,6 +1206,8 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $this->debugExecuteEnd($pair_id);
+
+            $active = true;
 
             return true;
         };
@@ -1269,6 +1273,8 @@ class Connection extends Component implements BootstrapInterface
         if ($this->watchdog !== false) {
             unlink($watchdogPidFile);
         }
+
+        $subscriptionConsumer->unsubscribeAll();
 
         $this->close();
 
