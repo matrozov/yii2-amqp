@@ -736,10 +736,6 @@ class Connection extends Component implements BootstrapInterface
 
         $message->setBody($this->serializer->serialize($job));
 
-        if (!empty($this->serializer->contentType())) {
-            $message->setContentType($this->serializer->contentType());
-        }
-
         return $message;
     }
 
