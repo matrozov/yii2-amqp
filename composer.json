@@ -26,6 +26,7 @@
 		"yiisoft/yii2-elasticsearch": "2.1.x-dev"
     },
     "suggest": {
+        "ext-mbstring": "Need for debugging.",
         "ext-pcntl": "Need for process signals.",
         "enqueue/amqp-lib": "Need for amqp over enqueue amqp-lib.",
         "enqueue/amqp-bunny": "Need for amqp over enqueue amqp-bunny.",

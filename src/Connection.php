@@ -1650,7 +1650,7 @@ class Connection extends Component implements BootstrapInterface
             'message'        => [
                 'headers'    => $message->getHeaders(),
                 'properties' => $message->getProperties(),
-                'body'       => substr($message->getBody(), 0, 4096),
+                'body'       => mb_substr($message->getBody(), 0, 4096),
             ],
         ];
 
