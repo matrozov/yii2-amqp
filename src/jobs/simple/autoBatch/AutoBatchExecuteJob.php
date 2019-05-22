@@ -30,7 +30,7 @@ interface AutoBatchExecuteJob extends ExecuteJob, RequestJob
     /**
      * @return Mutex
      */
-    public static function autoBatchMutex(): Mutex;
+    public static function autoBatchMutex();
 
     /**
      * @param Connection  $connection
