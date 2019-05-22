@@ -163,6 +163,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      *
      * @throws ErrorException
      * @throws Exception
+     * @throws \Exception
      */
     public function execute(Connection $connection, AmqpMessage $message)
     {
@@ -182,6 +183,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $consumer = $connection->context->createConsumer($queue);
 
         $jobs = [];
+        $msgs = [];
 
         for ($i = 0; $i < $batchCount; $i++) {
             $item_msg = $consumer->receiveNoWait();
@@ -191,6 +193,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             }
 
             $jobs[] = $connection->messageToJob($item_msg, $consumer);
+            $msgs[] = $item_msg;
         }
 
         $inQueue = $connection->context->declareQueue($queue);
@@ -204,7 +207,20 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         }
 
         if (count($jobs) > 0) {
-            $jobClass::executeAutoBatch($connection, $jobs);
+            try {
+                $jobClass::executeAutoBatch($connection, $jobs);
+            }
+            catch (\Exception $e) {
+                foreach ($msgs as $msg) {
+                    $consumer->reject($msg, true);
+                }
+
+                throw $e;
+            }
+
+            foreach ($msgs as $msg) {
+                $consumer->acknowledge($msg);
+            }
         }
     }
 }
