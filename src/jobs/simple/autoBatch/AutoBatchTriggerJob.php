@@ -48,10 +48,12 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     {
         /** @var AutoBatchExecuteJob $jobClass */
 
-        $classNameWON    = array_pop(explode('\\', $jobClass));
+        $items = explode('\\', $jobClass);
+
+        $classNameWON    = array_pop($items);
         $classNamePrefix = substr(md5($jobClass), 0, 8);
 
-        return $jobClass::exchangeName() . '.' . '.auto.batch.' . $classNamePrefix . '.' . $classNameWON;
+        return $jobClass::exchangeName() . '.auto.batch.' . $classNamePrefix . '.' . $classNameWON;
     }
 
     /**
@@ -160,6 +162,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      * @param AmqpMessage $message
      *
      * @throws ErrorException
+     * @throws Exception
      */
     public function execute(Connection $connection, AmqpMessage $message)
     {
@@ -178,16 +181,16 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $connection->context->declareQueue($queue);
         $consumer = $connection->context->createConsumer($queue);
 
-        $items = [];
+        $jobs = [];
 
         for ($i = 0; $i < $batchCount; $i++) {
-            $item = $consumer->receiveNoWait();
+            $item_msg = $consumer->receiveNoWait();
 
-            if (!$item) {
+            if (!$item_msg) {
                 break;
             }
 
-            $items[] = $item;
+            $jobs[] = $connection->messageToJob($message, $consumer);
         }
 
         $inQueue = $connection->context->declareQueue($queue);
@@ -200,8 +203,8 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             throw new ErrorException('Can\'t release mutex');
         }
 
-        if (count($items) > 0) {
-            $jobClass::executeAutoBatch($connection, $items);
+        if (count($jobs) > 0) {
+            $jobClass::executeAutoBatch($connection, $jobs);
         }
     }
 }

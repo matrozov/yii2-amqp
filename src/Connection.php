@@ -1116,9 +1116,11 @@ class Connection extends Component implements BootstrapInterface
      * @param AmqpMessage  $message
      * @param AmqpConsumer $consumer
      *
-     * @throws
+     * @return ExecuteJob
+     * @throws ErrorException
+     * @throws \Interop\Queue\Exception
      */
-    protected function handleMessage(AmqpMessage $message, AmqpConsumer $consumer)
+    public function messageToJob(AmqpMessage $message, AmqpConsumer $consumer)
     {
         $jobClassName = $message->getProperty(self::PROPERTY_JOB_NAME);
 
@@ -1157,6 +1159,19 @@ class Connection extends Component implements BootstrapInterface
                 throw new ErrorException('Can\'t execute unknown message: ' . gettype($job));
             }
         }
+
+        return $job;
+    }
+
+    /**
+     * @param AmqpMessage  $message
+     * @param AmqpConsumer $consumer
+     *
+     * @throws
+     */
+    protected function handleMessage(AmqpMessage $message, AmqpConsumer $consumer)
+    {
+        $job = $this->messageToJob($message, $consumer);
 
         if ($job instanceof RpcExecuteJob) {
             $this->handleRpcMessage($job, $message, $consumer);
