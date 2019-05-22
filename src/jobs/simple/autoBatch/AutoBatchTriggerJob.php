@@ -190,7 +190,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                 break;
             }
 
-            $jobs[] = $connection->messageToJob($message, $consumer);
+            $jobs[] = $connection->messageToJob($item_msg, $consumer);
         }
 
         $inQueue = $connection->context->declareQueue($queue);
