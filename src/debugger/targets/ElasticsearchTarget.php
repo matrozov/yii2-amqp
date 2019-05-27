@@ -66,7 +66,7 @@ class ElasticsearchTarget extends Target
             Json::encode([
                 'index' => new stdClass(),
             ]),
-            Json::encode($result),
+            Json::encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE),
         ]);
     }
 
