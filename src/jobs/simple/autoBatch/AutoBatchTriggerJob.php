@@ -127,7 +127,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         if ($inQueue == 0) {
             // Add to batch queue and start trigger job (if needed)
 
-            if (!$mutex->acquire($name)) {
+            if (!$mutex->acquire($name, 10)) {
                 throw new ErrorException('Can\'t acquire mutex');
             }
 
