@@ -5,7 +5,10 @@ namespace matrozov\yii2amqp\jobs\simple\autoBatch;
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\simple\RequestJob;
-use yii\mutex\Mutex;
+use yii\redis\Connection as RedisConnection;
+use Redis;
+use Memcache;
+use Memcached;
 
 /**
  * Interface AutoBatchExecuteJob
@@ -28,9 +31,9 @@ interface AutoBatchExecuteJob extends ExecuteJob, RequestJob
     public static function autoBatchCount(): int;
 
     /**
-     * @return Mutex
+     * @return RedisConnection|Redis|Memcache|Memcached
      */
-    public static function autoBatchMutex();
+    public static function autoBatchAtomicProvider();
 
     /**
      * @param Connection  $connection

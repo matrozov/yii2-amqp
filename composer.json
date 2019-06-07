@@ -20,13 +20,19 @@
         "yiisoft/yii2": "~2.0.14"
     },
     "require-dev": {
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-pcntl": "*",
+        "ext-redis": "*",
+        "ext-memcache": "*",
         "enqueue/amqp-lib": "^0.9",
         "enqueue/amqp-ext": "^0.9",
         "enqueue/amqp-bunny": "^0.9",
-		"yiisoft/yii2-elasticsearch": "2.1.x-dev"
+		"yiisoft/yii2-elasticsearch": "2.1.x-dev",
+        "yiisoft/yii2-redis": "~2.0.0"
     },
     "suggest": {
-        "ext-json": "Need for json encode transfer and logging",
+        "ext-json": "Need for json encode transfer and logging.",
         "ext-mbstring": "Need for debugging.",
         "ext-pcntl": "Need for process signals.",
         "enqueue/amqp-lib": "Need for amqp over enqueue amqp-lib.",

@@ -15,6 +15,11 @@ use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\simple\ExecuteJobTrait;
 use matrozov\yii2amqp\jobs\simple\RequestJob;
 use matrozov\yii2amqp\jobs\simple\RequestJobTrait;
+use Memcache;
+use Memcached;
+use Redis;
+use yii\base\InvalidConfigException;
+use yii\redis\Connection as RedisConnection;
 use yii\base\ErrorException;
 
 /**
@@ -111,49 +116,28 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      * @param AmqpMessage         $message
      * @param AutoBatchExecuteJob $job
      *
+     * @throws ErrorException
      * @throws Exception
+     * @throws InvalidConfigException
      * @throws InvalidDestinationException
      * @throws InvalidMessageException
-     * @throws ErrorException
      */
     public static function batchJob(Connection $connection, AmqpMessage $message, AutoBatchExecuteJob $job)
     {
-        $name  = self::name(get_class($job));
-        $queue = self::getQueue($connection, $name);
+        $name   = self::name(get_class($job));
+        $queue  = self::getQueue($connection, $name);
+        $atomic = $job::autoBatchAtomicProvider();
 
-        $mutex   = $job::autoBatchMutex();
-        $inQueue = $connection->context->declareQueue($queue);
+        $last = self::atomic($atomic, $name, 1);
 
-        if ($inQueue == 0) {
-            // Add to batch queue and start trigger job (if needed)
-
-            if (!$mutex->acquire($name, 10)) {
-                throw new ErrorException('Can\'t acquire mutex');
-            }
-
-            $inQueue = $connection->context->declareQueue($queue);
-
-            if ($inQueue == 0) {
-                self::sendToBatchQueue($connection, $queue, $message);
-
-                if (!$mutex->release($name)) {
-                    throw new ErrorException('Can\'t release mutex');
-                }
-
-                self::sendTrigger($connection, get_class($job));
-            }
-            else {
-                self::sendToBatchQueue($connection, $queue, $message);
-
-                if (!$mutex->release($name)) {
-                    throw new ErrorException('Can\'t release mutex');
-                }
-            }
+        if ($last === false) {
+            throw new ErrorException('Can\'t set atomic value!');
         }
-        else {
-            // Simple add to batch queue
 
-            self::sendToBatchQueue($connection, $queue, $message);
+        self::sendToBatchQueue($connection, $queue, $message);
+
+        if ($last == 0) {
+            self::sendTrigger($connection, get_class($job));
         }
     }
 
@@ -170,13 +154,8 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         /** @var AutoBatchExecuteJob $jobClass */
         $jobClass   = $this->jobClass;
         $name       = self::name($jobClass);
-
-        $mutex      = $jobClass::autoBatchMutex();
+        $atomic     = $jobClass::autoBatchAtomicProvider();
         $batchCount = $jobClass::autoBatchCount();
-
-        if (!$mutex->acquire($name)) {
-            throw new ErrorException('Can\'t acquire mutex');
-        }
 
         $queue = self::getQueue($connection, $name);
         $connection->context->declareQueue($queue);
@@ -196,14 +175,14 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             $msgs[] = $item_msg;
         }
 
-        $inQueue = $connection->context->declareQueue($queue);
+        $last = self::atomic($atomic, $name, -count($jobs));
 
-        if ($inQueue > 0) {
-            self::sendTrigger($connection, $jobClass, $inQueue >= $batchCount);
+        if ($last === false) {
+            throw new ErrorException('Can\'t set atomic value!');
         }
 
-        if (!$mutex->release($name)) {
-            throw new ErrorException('Can\'t release mutex');
+        if ($last > 0) {
+            self::sendTrigger($connection, $jobClass, $last >= $batchCount);
         }
 
         if (count($jobs) > 0) {
@@ -215,6 +194,16 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                     $consumer->reject($msg, true);
                 }
 
+                $last = self::atomic($atomic, $name, count($jobs));
+
+                if ($last === false) {
+                    throw new ErrorException('Can\'t set atomic value!');
+                }
+
+                if ($last == 0) {
+                    self::sendTrigger($connection, $jobClass);
+                }
+
                 throw $e;
             }
 
@@ -222,5 +211,55 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                 $consumer->acknowledge($msg);
             }
         }
+    }
+
+    /**
+     * @param RedisConnection|Redis|Memcache|Memcached $atomic
+     * @param string                             $key
+     * @param int                                $value
+     *
+     * @return false|int
+     * @throws InvalidConfigException
+     */
+    protected static function atomic($atomic, $key, $value)
+    {
+        if ($atomic instanceof RedisConnection) {
+            /** @var RedisConnection $atomic */
+
+            if ($value > 0) {
+                return $atomic->incrby($key, $value) - $value;
+            }
+
+            return $atomic->decrby($key, $value) + $value;
+        }
+        elseif ($atomic instanceof Redis) {
+            /** @var Redis $atomic */
+
+            if ($value > 0) {
+                return $atomic->incrby($key, $value) - $value;
+            }
+
+            return $atomic->decrby($key, $value) + $value;
+        }
+        elseif ($atomic instanceof Memcache) {
+            /** @var Memcache $atomic */
+
+            if ($value > 0) {
+                return $atomic->increment($key, $value);
+            }
+
+            return $atomic->decrement($key, $value);
+        }
+        elseif ($atomic instanceof Memcached) {
+            /** @var Memcached $atomic */
+
+            if ($value > 0) {
+                return $atomic->increment($key, $value);
+            }
+
+            return $atomic->decrement($key, $value);
+        }
+
+        throw new InvalidConfigException('Unknown atomic provider type!');
     }
 }
