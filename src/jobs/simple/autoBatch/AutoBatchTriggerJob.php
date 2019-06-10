@@ -128,15 +128,15 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $queue  = self::getQueue($connection, $name);
         $atomic = $job::autoBatchAtomicProvider();
 
-        $last = self::atomic($atomic, $name, 1);
+        $count = self::atomic($atomic, $name, 1);
 
-        if ($last === false) {
+        if ($count === false) {
             throw new ErrorException('Can\'t set atomic value!');
         }
 
         self::sendToBatchQueue($connection, $queue, $message);
 
-        if ($last == 0) {
+        if ($count == 1) {
             self::sendTrigger($connection, get_class($job));
         }
     }
@@ -175,14 +175,16 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             $msgs[] = $item_msg;
         }
 
-        $last = self::atomic($atomic, $name, -count($jobs));
+        $countJobs = count($jobs);
 
-        if ($last === false) {
+        $count = self::atomic($atomic, $name, -$countJobs);
+
+        if ($count === false) {
             throw new ErrorException('Can\'t set atomic value!');
         }
 
-        if ($last > 0) {
-            self::sendTrigger($connection, $jobClass, $last >= $batchCount);
+        if ($count > 0) {
+            self::sendTrigger($connection, $jobClass, $count >= $batchCount);
         }
 
         if (count($jobs) > 0) {
@@ -194,13 +196,13 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                     $consumer->reject($msg, true);
                 }
 
-                $last = self::atomic($atomic, $name, count($jobs));
+                $count = self::atomic($atomic, $name, $countJobs);
 
-                if ($last === false) {
+                if ($count === false) {
                     throw new ErrorException('Can\'t set atomic value!');
                 }
 
-                if ($last == 0) {
+                if ($count == $countJobs) {
                     self::sendTrigger($connection, $jobClass);
                 }
 
@@ -227,37 +229,37 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             /** @var RedisConnection $atomic */
 
             if ($value > 0) {
-                return $atomic->incrby($key, $value) - $value;
+                return $atomic->incrby($key, $value);
             }
 
-            return $atomic->decrby($key, $value) + $value;
+            return $atomic->decrby($key, -$value);
         }
         elseif ($atomic instanceof Redis) {
             /** @var Redis $atomic */
 
             if ($value > 0) {
-                return $atomic->incrby($key, $value) - $value;
+                return $atomic->incrby($key, $value);
             }
 
-            return $atomic->decrby($key, $value) + $value;
+            return $atomic->decrby($key, -$value);
         }
         elseif ($atomic instanceof Memcache) {
             /** @var Memcache $atomic */
 
             if ($value > 0) {
-                return $atomic->increment($key, $value);
+                return $atomic->increment($key, $value) + $value;
             }
 
-            return $atomic->decrement($key, $value);
+            return $atomic->decrement($key, -$value) - $value;
         }
         elseif ($atomic instanceof Memcached) {
             /** @var Memcached $atomic */
 
             if ($value > 0) {
-                return $atomic->increment($key, $value);
+                return $atomic->increment($key, $value) + $value;
             }
 
-            return $atomic->decrement($key, $value);
+            return $atomic->decrement($key, -$value) - $value;
         }
 
         throw new InvalidConfigException('Unknown atomic provider type!');
