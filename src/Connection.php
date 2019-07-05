@@ -1223,12 +1223,16 @@ class Connection extends Component implements BootstrapInterface
                 $this->handleMessage($message, $consumer);
             }
             catch (Exception $exception) {
-                $this->debugExecuteEnd($pair_id, $exception);
+                if ($pair_id) {
+                    $this->debugExecuteEnd($pair_id, $exception);
+                }
 
                 throw $exception;
             }
 
-            $this->debugExecuteEnd($pair_id);
+            if ($pair_id) {
+                $this->debugExecuteEnd($pair_id);
+            }
 
             $active = true;
 
