@@ -832,12 +832,16 @@ class Connection extends Component implements BootstrapInterface
             }
         }
         catch (Exception $exception) {
-            $this->debugSendEnd($pair_id, $exception);
+            if ($pair_id) {
+                $this->debugSendEnd($pair_id, $exception);
+            }
 
             throw $exception;
         }
 
-        $this->debugSendEnd($pair_id);
+        if ($pair_id) {
+            $this->debugSendEnd($pair_id);
+        }
 
         return $result;
     }
@@ -863,12 +867,16 @@ class Connection extends Component implements BootstrapInterface
             $this->sendMessage($producer, $target, $message, $job);
         }
         catch (Exception $exception) {
-            $this->debugSendEnd($pair_id, $exception);
+            if ($pair_id) {
+                $this->debugSendEnd($pair_id, $exception);
+            }
 
             throw $exception;
         }
 
-        $this->debugSendEnd($pair_id);
+        if ($pair_id) {
+            $this->debugSendEnd($pair_id);
+        }
 
         return true;
     }
@@ -935,12 +943,16 @@ class Connection extends Component implements BootstrapInterface
             $this->sendMessage($producer, $queue, $responseMessage, $responseJob);
         }
         catch (Exception $exception) {
-            $this->debugSendEnd($pair_id, $exception);
+            if ($pair_id) {
+                $this->debugSendEnd($pair_id, $exception);
+            }
 
             throw $exception;
         }
 
-        $this->debugSendEnd($pair_id);
+        if ($pair_id) {
+            $this->debugSendEnd($pair_id);
+        }
 
         return true;
     }
@@ -1445,12 +1457,16 @@ class Connection extends Component implements BootstrapInterface
             $this->sendMessage($producer, $consumer->getQueue(), $newMessage, $job);
         }
         catch (Exception $exception) {
-            $this->debugSendEnd($pair_id, $exception);
+            if ($pair_id) {
+                $this->debugSendEnd($pair_id, $exception);
+            }
 
             throw $exception;
         }
 
-        $this->debugSendEnd($pair_id);
+        if ($pair_id) {
+            $this->debugSendEnd($pair_id);
+        }
 
         return true;
     }
@@ -1682,7 +1698,7 @@ class Connection extends Component implements BootstrapInterface
      * @param array          $fields
      *
      */
-    protected function debugSendEnd($pair_id, Exception $exception = null, array $fields = [])
+    protected function debugSendEnd(string $pair_id, Exception $exception = null, array $fields = [])
     {
         if (!$this->debugger) {
             return;
