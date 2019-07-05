@@ -1682,7 +1682,7 @@ class Connection extends Component implements BootstrapInterface
      * @param array          $fields
      *
      */
-    protected function debugSendEnd(string $pair_id, Exception $exception = null, array $fields = [])
+    protected function debugSendEnd($pair_id, Exception $exception = null, array $fields = [])
     {
         if (!$this->debugger) {
             return;
