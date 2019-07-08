@@ -1012,7 +1012,7 @@ class Connection extends Component implements BootstrapInterface
 
             $this->replyRpcMessage($message, $responseJob);
 
-            Yii::warning($exception->getMessage());
+            Yii::$app->getErrorHandler()->logException($exception);
 
             return null;
         }
