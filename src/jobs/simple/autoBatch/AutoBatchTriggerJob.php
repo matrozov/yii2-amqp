@@ -180,6 +180,8 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                 $jobs[] = $connection->messageToJob($item_msg, $consumer);
                 $msgs[] = $item_msg;
             }
+
+            self::triggerUnset($atomic, $name);
         }
 
         $queueCount = $connection->context->declareQueue($queue);
@@ -256,7 +258,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      *
      * @throws InvalidConfigException
      */
-    protected static function triggerUnSet($atomic, string $key)
+    protected static function triggerUnset($atomic, string $key)
     {
         if ($atomic instanceof RedisConnection) {
             /** @var RedisConnection $atomic */
