@@ -27,6 +27,7 @@ use yii\base\ErrorException;
  * @package matrozov\yii2amqp\jobs\simple\autoBatch
  *
  * @property string $jobClass
+ * @property bool   $finalize
  */
 class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
 {
@@ -35,6 +36,8 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     use DelayedJobTrait;
 
     public $jobClass;
+
+    public $finalize;
 
     /**
      * @return string
@@ -98,14 +101,16 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      * @param Connection $connection
      * @param string     $jobClass
      * @param bool       $immediate
+     * @param bool       $finalize
      *
      * @throws ErrorException
      */
-    protected static function sendTrigger(Connection $connection, string $jobClass, bool $immediate = false)
+    protected static function sendTrigger(Connection $connection, string $jobClass, bool $immediate = false, bool $finalize = false)
     {
         /** @var AutoBatchExecuteJob $jobClass */
         $trigger = new static();
         $trigger->jobClass = $jobClass;
+        $trigger->finalize = $finalize;
         $trigger->delay    = $immediate ? null : $jobClass::autoBatchDelay();
 
         $connection->send($trigger, $jobClass::exchangeName());
@@ -129,18 +134,14 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $name     = self::name($jobClass);
         $atomic   = $job::autoBatchAtomicProvider();
 
-        $queue  = self::getQueue($connection, $name);
+        $queue    = self::getQueue($connection, $name);
         $connection->context->declareQueue($queue);
-
-        $count = self::atomic($atomic, $name, 1);
-
-        if ($count === false) {
-            throw new ErrorException('Can\'t set atomic value!');
-        }
 
         self::sendToBatchQueue($connection, $queue, $message);
 
-        if ($count == 1) {
+        $canTrigger = self::triggerSet($atomic, $name);
+
+        if ($canTrigger) {
             self::sendTrigger($connection, $jobClass);
         }
     }
@@ -168,30 +169,35 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $jobs = [];
         $msgs = [];
 
-        for ($i = 0; $i < $batchCount; $i++) {
-            $item_msg = $consumer->receiveNoWait();
+        if (!$this->finalize) {
+            for ($i = 0; $i < $batchCount; $i++) {
+                $item_msg = $consumer->receiveNoWait();
 
-            if (!$item_msg) {
-                break;
+                if (!$item_msg) {
+                    break;
+                }
+
+                $jobs[] = $connection->messageToJob($item_msg, $consumer);
+                $msgs[] = $item_msg;
             }
+        }
 
-            $jobs[] = $connection->messageToJob($item_msg, $consumer);
-            $msgs[] = $item_msg;
+        $queueCount = $connection->context->declareQueue($queue);
+
+        if ($queueCount > 0) {
+            $canTrigger = self::triggerSet($atomic, $name);
+
+            if ($canTrigger) {
+                self::sendTrigger($connection, $jobClass, $queueCount >= $batchCount);
+            }
+        }
+        elseif (!$this->finalize) {
+            self::sendTrigger($connection, $jobClass, false, true);
         }
 
         $countJobs = count($jobs);
 
-        $count = self::atomic($atomic, $name, -$countJobs);
-
-        if ($count === false) {
-            throw new ErrorException('Can\'t set atomic value!');
-        }
-
-        if ($count > 0) {
-            self::sendTrigger($connection, $jobClass, $count >= $batchCount);
-        }
-
-        if (count($jobs) > 0) {
+        if ($countJobs > 0) {
             try {
                 $jobClass::executeAutoBatch($connection, $jobs);
             }
@@ -200,14 +206,10 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                     $consumer->reject($msg, true);
                 }
 
-                $count = self::atomic($atomic, $name, $countJobs);
+                $canTrigger = self::triggerSet($atomic, $name);
 
-                if ($count === false) {
-                    throw new ErrorException('Can\'t set atomic value!');
-                }
-
-                if ($count == $countJobs) {
-                    self::sendTrigger($connection, $jobClass);
+                if (!$canTrigger) {
+                    self::sendTrigger($connection, $jobClass, true);
                 }
 
                 throw $e;
@@ -220,50 +222,57 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     }
 
     /**
-     * @param RedisConnection|Redis|Memcache|Memcached $atomic
-     * @param string                             $key
-     * @param int                                $value
+     * @param mixed  $atomic
+     * @param string $key
      *
-     * @return false|int
+     * @return bool
      * @throws InvalidConfigException
      */
-    protected static function atomic($atomic, $key, $value)
+    protected static function triggerSet($atomic, string $key): bool
     {
         if ($atomic instanceof RedisConnection) {
             /** @var RedisConnection $atomic */
-
-            if ($value > 0) {
-                return $atomic->incrby($key, $value);
-            }
-
-            return $atomic->decrby($key, -$value);
+            return $atomic->setnx($key, 1);
         }
         elseif ($atomic instanceof Redis) {
             /** @var Redis $atomic */
-
-            if ($value > 0) {
-                return $atomic->incrby($key, $value);
-            }
-
-            return $atomic->decrby($key, -$value);
+            return $atomic->setnx($key, 1);
         }
         elseif ($atomic instanceof Memcache) {
             /** @var Memcache $atomic */
-
-            if ($value > 0) {
-                return $atomic->increment($key, $value) + $value;
-            }
-
-            return $atomic->decrement($key, -$value) - $value;
+            return $atomic->add($key, 1);
         }
         elseif ($atomic instanceof Memcached) {
             /** @var Memcached $atomic */
+            return $atomic->add($key, 1);
+        }
 
-            if ($value > 0) {
-                return $atomic->increment($key, $value) + $value;
-            }
+        throw new InvalidConfigException('Unknown atomic provider type!');
+    }
 
-            return $atomic->decrement($key, -$value) - $value;
+    /**
+     * @param mixed  $atomic
+     * @param string $key
+     *
+     * @throws InvalidConfigException
+     */
+    protected static function triggerUnSet($atomic, string $key)
+    {
+        if ($atomic instanceof RedisConnection) {
+            /** @var RedisConnection $atomic */
+            $atomic->del($key);
+        }
+        elseif ($atomic instanceof Redis) {
+            /** @var Redis $atomic */
+            $atomic->del($key);
+        }
+        elseif ($atomic instanceof Memcache) {
+            /** @var Memcache $atomic */
+            $atomic->delete($key);
+        }
+        elseif ($atomic instanceof Memcached) {
+            /** @var Memcached $atomic */
+            $atomic->delete($key);
         }
 
         throw new InvalidConfigException('Unknown atomic provider type!');
