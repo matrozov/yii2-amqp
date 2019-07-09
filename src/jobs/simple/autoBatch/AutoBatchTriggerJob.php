@@ -39,6 +39,8 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
 
     public $finalize;
 
+    const FAIL_DELAY_MULTIPLIER = 10;
+
     /**
      * @return string
      */
@@ -67,15 +69,18 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     /**
      * @param Connection $connection
      * @param string     $name
+     * @param string     $exchange
+     * @param int        $ttl
      *
      * @return AmqpQueue
      */
-    protected static function getQueue(Connection $connection, string $name): AmqpQueue
+    protected static function getQueue(Connection $connection, string $name, string $exchange, int $ttl): AmqpQueue
     {
         $queue = $connection->context->createQueue($name);
-        $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
-        $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
         $queue->addFlag(AmqpDestination::FLAG_DURABLE);
+        $queue->setArgument('x-message-ttl', $ttl * self::FAIL_DELAY_MULTIPLIER);
+        $queue->setArgument('x-dead-letter-exchange', $exchange);
+        $queue->setArgument('x-dead-letter-routing-key', '');
 
         return $queue;
     }
@@ -134,12 +139,12 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $name     = self::name($jobClass);
         $atomic   = $job::autoBatchAtomicProvider();
 
-        $queue    = self::getQueue($connection, $name);
+        $queue    = self::getQueue($connection, $name, $jobClass::exchangeName(), $jobClass::autoBatchDelay());
         $connection->context->declareQueue($queue);
 
         self::sendToBatchQueue($connection, $queue, $message);
 
-        $canTrigger = self::triggerSet($atomic, $name);
+        $canTrigger = self::triggerSet($atomic, $name, $jobClass::autoBatchDelay());
 
         if ($canTrigger) {
             self::sendTrigger($connection, $jobClass);
@@ -162,7 +167,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $atomic     = $jobClass::autoBatchAtomicProvider();
         $batchCount = $jobClass::autoBatchCount();
 
-        $queue = self::getQueue($connection, $name);
+        $queue = self::getQueue($connection, $name, $jobClass::exchangeName(), $jobClass::autoBatchDelay());
         $connection->context->declareQueue($queue);
         $consumer = $connection->context->createConsumer($queue);
 
@@ -187,7 +192,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $queueCount = $connection->context->declareQueue($queue);
 
         if ($queueCount > 0) {
-            $canTrigger = self::triggerSet($atomic, $name);
+            $canTrigger = self::triggerSet($atomic, $name, $jobClass::autoBatchDelay());
 
             if ($canTrigger) {
                 self::sendTrigger($connection, $jobClass, $queueCount >= $batchCount);
@@ -208,7 +213,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                     $consumer->reject($msg, true);
                 }
 
-                $canTrigger = self::triggerSet($atomic, $name);
+                $canTrigger = self::triggerSet($atomic, $name, $jobClass::autoBatchDelay());
 
                 if (!$canTrigger) {
                     self::sendTrigger($connection, $jobClass, true);
@@ -226,27 +231,40 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     /**
      * @param mixed  $atomic
      * @param string $key
+     * @param int    $ttl
      *
      * @return bool
      * @throws InvalidConfigException
      */
-    protected static function triggerSet($atomic, string $key): bool
+    protected static function triggerSet($atomic, string $key, int $ttl): bool
     {
         if ($atomic instanceof RedisConnection) {
             /** @var RedisConnection $atomic */
-            return $atomic->setnx($key, 1);
+            if ($atomic->setnx($key, 1)) {
+                $atomic->expire($key, $ttl * self::FAIL_DELAY_MULTIPLIER);
+
+                return true;
+            }
+
+            return false;
         }
         elseif ($atomic instanceof Redis) {
             /** @var Redis $atomic */
-            return $atomic->setnx($key, 1);
+            if ($atomic->setnx($key, 1)) {
+                $atomic->expire($key, $ttl * self::FAIL_DELAY_MULTIPLIER);
+
+                return true;
+            }
+
+            return false;
         }
         elseif ($atomic instanceof Memcache) {
             /** @var Memcache $atomic */
-            return $atomic->add($key, 1);
+            return $atomic->add($key, 1, null, $ttl * self::FAIL_DELAY_MULTIPLIER);
         }
         elseif ($atomic instanceof Memcached) {
             /** @var Memcached $atomic */
-            return $atomic->add($key, 1);
+            return $atomic->add($key, 1, $ttl * self::FAIL_DELAY_MULTIPLIER);
         }
 
         throw new InvalidConfigException('Unknown atomic provider type!');
