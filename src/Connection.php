@@ -1103,7 +1103,7 @@ class Connection extends Component implements BootstrapInterface
     protected function handleSimpleMessageException(Exception $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         if ($exception instanceof HttpException) {
-            Yii::warning($exception->getMessage());
+            Yii::$app->getErrorHandler()->logException($exception);
 
             return null;
         }
