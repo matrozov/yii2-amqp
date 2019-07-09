@@ -124,9 +124,13 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      */
     public static function batchJob(Connection $connection, AmqpMessage $message, AutoBatchExecuteJob $job)
     {
-        $name   = self::name(get_class($job));
+        /** @var AutoBatchExecuteJob $jobClass */
+        $jobClass = get_class($job);
+        $name     = self::name($jobClass);
+        $atomic   = $job::autoBatchAtomicProvider();
+
         $queue  = self::getQueue($connection, $name);
-        $atomic = $job::autoBatchAtomicProvider();
+        $connection->context->declareQueue($queue);
 
         $count = self::atomic($atomic, $name, 1);
 
@@ -137,7 +141,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         self::sendToBatchQueue($connection, $queue, $message);
 
         if ($count == 1) {
-            self::sendTrigger($connection, get_class($job));
+            self::sendTrigger($connection, $jobClass);
         }
     }
 
