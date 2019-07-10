@@ -78,7 +78,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     {
         $queue = $connection->context->createQueue($name);
         $queue->addFlag(AmqpDestination::FLAG_DURABLE);
-        $queue->setArgument('x-message-ttl', $ttl * self::FAIL_DELAY_MULTIPLIER);
+        $queue->setArgument('x-message-ttl', $ttl * self::FAIL_DELAY_MULTIPLIER * 1000);
         $queue->setArgument('x-dead-letter-exchange', $exchange);
         $queue->setArgument('x-dead-letter-routing-key', '');
 
