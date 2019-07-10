@@ -294,7 +294,8 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             /** @var Memcached $atomic */
             $atomic->delete($key);
         }
-
-        throw new InvalidConfigException('Unknown atomic provider type!');
+        else {
+            throw new InvalidConfigException('Unknown atomic provider type!');
+        }
     }
 }
