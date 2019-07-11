@@ -95,7 +95,7 @@ class ElasticsearchTarget extends Target
         $logs    = array_map([$this, 'prepareLog'], $this->_logs);
         $content = implode(PHP_EOL, $logs) . PHP_EOL;
 
-        $this->db->post([$this->index, $this->type, '_bulk'], $this->dbOptions, $content);
+        $this->db->post([$this->index . '_' . date('Y.m.d'), $this->type, '_bulk'], $this->dbOptions, $content);
 
         $this->_logs = [];
     }
