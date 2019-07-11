@@ -710,6 +710,36 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @param string $exchangeName
+     *
+     * @return AmqpTopic
+     * @throws ErrorException
+     */
+    public function getExchange(string $exchangeName): AmqpTopic
+    {
+        if (!isset($this->_exchanges[$exchangeName])) {
+            throw new ErrorException('Exchange with name `' . $exchangeName . '` not found!');
+        }
+
+        return $this->_exchanges[$exchangeName];
+    }
+
+    /**
+     * @param string $queueName
+     *
+     * @return AmqpQueue
+     * @throws ErrorException
+     */
+    public function getQueue(string $queueName): AmqpQueue
+    {
+        if (!isset($this->_queues[$queueName])) {
+            throw new ErrorException('Queue with name `' . $queueName . '` not found!');
+        }
+
+        return $this->_queues[$queueName];
+    }
+
+    /**
      * @param BaseJob $job
      *
      * @return AmqpMessage
@@ -896,11 +926,7 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        if (!isset($this->_exchanges[$exchangeName])) {
-            throw new ErrorException('Exchange with name `' . $exchangeName . '` not found!');
-        }
-
-        $exchange = $this->_exchanges[$exchangeName];
+        $exchange = $this->getExchange($exchangeName);
 
         if ($job instanceof RpcRequestJob) {
             $result = $this->sendRpcMessage($exchange, $job);
@@ -1030,7 +1056,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         if ($exception instanceof NeedRedeliveryException) {
-            if ($this->redelivery($job, $message, $consumer, $exception)) {
+            if ($this->redelivery($job, $message, $consumer->getQueue(), $exception)) {
                 Yii::$app->getErrorHandler()->logException(new RedeliveryException($exception->getMessage(), 0, $exception));
             }
             else {
@@ -1044,7 +1070,7 @@ class Connection extends Component implements BootstrapInterface
             return null;
         }
 
-        if (!$this->redelivery($job, $message, $consumer, $exception)) {
+        if (!$this->redelivery($job, $message, $consumer->getQueue(), $exception)) {
             $responseJob = new RpcExceptionResponseJob($exception);
 
             $this->replyRpcMessage($message, $responseJob);
@@ -1109,7 +1135,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         if ($exception instanceof NeedRedeliveryException) {
-            if ($this->redelivery($job, $message, $consumer, $exception)) {
+            if ($this->redelivery($job, $message, $consumer->getQueue(), $exception)) {
                 Yii::$app->getErrorHandler()->logException(new RedeliveryException($exception->getMessage(), 0, $exception));
             }
             else {
@@ -1119,7 +1145,7 @@ class Connection extends Component implements BootstrapInterface
             return null;
         }
 
-        $this->redelivery($job, $message, $consumer, $exception);
+        $this->redelivery($job, $message, $consumer->getQueue(), $exception);
 
         return $exception;
     }
@@ -1131,6 +1157,7 @@ class Connection extends Component implements BootstrapInterface
      * @return ExecuteJob
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
+     * @throws Exception
      */
     public function messageToJob(AmqpMessage $message, AmqpConsumer $consumer)
     {
@@ -1153,7 +1180,7 @@ class Connection extends Component implements BootstrapInterface
             $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
         }
         catch (Exception $exception) {
-            $this->redelivery(null, $message, $consumer, $exception);
+            $this->redelivery(null, $message, $consumer->getQueue(), $exception);
 
             $consumer->acknowledge($message);
 
@@ -1171,6 +1198,8 @@ class Connection extends Component implements BootstrapInterface
                 throw new ErrorException('Can\'t execute unknown message: ' . gettype($job));
             }
         }
+
+        $job->setMessage($message);
 
         return $job;
     }
@@ -1208,9 +1237,7 @@ class Connection extends Component implements BootstrapInterface
         }
         else {
             foreach ((array)$queueNames as $queueName) {
-                if (!isset($this->_queues[$queueName])) {
-                    throw new ErrorException('Queue config `' . $queueName . '` not found!');
-                }
+                $this->getQueue($queueName);
             }
         }
 
@@ -1250,7 +1277,8 @@ class Connection extends Component implements BootstrapInterface
         $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
 
         foreach ($queueNames as $queueName) {
-            $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
+            $queue    = $this->getQueue($queueName);
+            $consumer = $this->_context->createConsumer($queue);
 
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
@@ -1276,7 +1304,8 @@ class Connection extends Component implements BootstrapInterface
                 $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
 
                 foreach ($queueNames as $queueName) {
-                    $consumer = $this->_context->createConsumer($this->_queues[$queueName]);
+                    $queue    = $this->getQueue($queueName);
+                    $consumer = $this->_context->createConsumer($queue);
 
                     $subscriptionConsumer->subscribe($consumer, $callback);
                 }
@@ -1423,7 +1452,7 @@ class Connection extends Component implements BootstrapInterface
     /**
      * @param BaseJob|null        $job
      * @param AmqpMessage         $message
-     * @param AmqpConsumer        $consumer
+     * @param AmqpDestination     $target
      * @param Exception|Throwable $error
      *
      * @return bool
@@ -1431,7 +1460,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws \Interop\Queue\Exception
      * @throws Exception
      */
-    protected function redelivery($job, AmqpMessage $message, AmqpConsumer $consumer, $error)
+    public function redelivery($job, AmqpMessage $message, AmqpDestination $target, $error)
     {
         $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
@@ -1453,12 +1482,12 @@ class Connection extends Component implements BootstrapInterface
 
         $this->prepareMessage($producer, $newMessage, $job);
 
-        $pair_id = $this->debugSendStart($consumer->getQueue(), $newMessage,  'redelivery', [
+        $pair_id = $this->debugSendStart($target, $newMessage,  'redelivery', [
             'redelivery_to' => $message->getMessageId(),
         ]);
 
         try {
-            $this->sendMessage($producer, $consumer->getQueue(), $newMessage, $job);
+            $this->sendMessage($producer, $target, $newMessage, $job);
         }
         catch (Exception $exception) {
             if ($pair_id) {

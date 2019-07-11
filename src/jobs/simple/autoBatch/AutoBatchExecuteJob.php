@@ -36,8 +36,9 @@ interface AutoBatchExecuteJob extends ExecuteJob, RequestJob
     public static function autoBatchAtomicProvider();
 
     /**
-     * @param Connection  $connection
-     * @param array       $items
+     * @param Connection          $connection
+     * @param array               $items
+     * @param AutoBatchTriggerJob $trigger
      */
-    public static function executeAutoBatch(Connection $connection, array $items);
+    public static function executeAutoBatch(Connection $connection, array $items, AutoBatchTriggerJob $trigger);
 }

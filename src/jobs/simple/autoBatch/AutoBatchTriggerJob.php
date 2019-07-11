@@ -2,6 +2,7 @@
 
 namespace matrozov\yii2amqp\jobs\simple\autoBatch;
 
+use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\AmqpQueue;
@@ -9,6 +10,7 @@ use Interop\Queue\Exception;
 use Interop\Queue\Exception\InvalidDestinationException;
 use Interop\Queue\Exception\InvalidMessageException;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\jobs\DelayedJob;
 use matrozov\yii2amqp\jobs\DelayedJobTrait;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
@@ -18,6 +20,7 @@ use matrozov\yii2amqp\jobs\simple\RequestJobTrait;
 use Memcache;
 use Memcached;
 use Redis;
+use Throwable;
 use yii\base\InvalidConfigException;
 use yii\redis\Connection as RedisConnection;
 use yii\base\ErrorException;
@@ -38,6 +41,12 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     public $jobClass;
 
     public $finalize;
+
+    /** @var AmqpConsumer $_consumer */
+    protected $_consumer;
+
+    /** @var ExecuteJob[] $_jobs */
+    protected $_jobs;
 
     const FAIL_DELAY_MULTIPLIER = 10;
 
@@ -107,8 +116,6 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      * @param string     $jobClass
      * @param bool       $immediate
      * @param bool       $finalize
-     *
-     * @throws ErrorException
      */
     protected static function sendTrigger(Connection $connection, string $jobClass, bool $immediate = false, bool $finalize = false)
     {
@@ -126,7 +133,6 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      * @param AmqpMessage         $message
      * @param AutoBatchExecuteJob $job
      *
-     * @throws ErrorException
      * @throws Exception
      * @throws InvalidConfigException
      * @throws InvalidDestinationException
@@ -169,21 +175,19 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
 
         $queue = self::getQueue($connection, $name, $jobClass::exchangeName(), $jobClass::autoBatchDelay());
         $connection->context->declareQueue($queue);
-        $consumer = $connection->context->createConsumer($queue);
+        $this->_consumer = $connection->context->createConsumer($queue);
 
-        $jobs = [];
-        $msgs = [];
+        $this->_jobs = [];
 
         if (!$this->finalize) {
             for ($i = 0; $i < $batchCount; $i++) {
-                $item_msg = $consumer->receiveNoWait();
+                $item_msg = $this->_consumer->receiveNoWait();
 
                 if (!$item_msg) {
                     break;
                 }
 
-                $jobs[] = $connection->messageToJob($item_msg, $consumer);
-                $msgs[] = $item_msg;
+                $this->_jobs[] = $connection->messageToJob($item_msg, $this->_consumer);
             }
 
             self::triggerUnset($atomic, $name);
@@ -202,15 +206,15 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             self::sendTrigger($connection, $jobClass, false, true);
         }
 
-        $countJobs = count($jobs);
+        $countJobs = count($this->_jobs);
 
         if ($countJobs > 0) {
             try {
-                $jobClass::executeAutoBatch($connection, $jobs);
+                $jobClass::executeAutoBatch($connection, $this->_jobs, $this);
             }
             catch (\Exception $e) {
-                foreach ($msgs as $msg) {
-                    $consumer->reject($msg, true);
+                foreach ($this->_jobs as $job) {
+                    $this->_consumer->reject($job->message, true);
                 }
 
                 $canTrigger = self::triggerSet($atomic, $name, $jobClass::autoBatchDelay());
@@ -222,10 +226,40 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
                 throw $e;
             }
 
-            foreach ($msgs as $msg) {
-                $consumer->acknowledge($msg);
+            foreach ($this->_jobs as $job) {
+                $this->_consumer->acknowledge($job->message);
             }
         }
+    }
+
+    /**
+     * @param Connection           $connection
+     * @param AutoBatchExecuteJob  $job
+     * @param \Exception|Throwable $error
+     *
+     * @return bool
+     * @throws ErrorException
+     * @throws Exception
+     */
+    public function redelivery(Connection $connection, AutoBatchExecuteJob $job, $error): bool
+    {
+        $index = array_search($job, $this->_jobs);
+
+        if ($index === false) {
+            throw new ErrorException('Unknown job!');
+        }
+
+        $exchange = $connection->getExchange($this::exchangeName());
+
+        if (!$connection->redelivery($job, $job->message, $exchange, $error)) {
+            return false;
+        }
+
+        $this->_consumer->acknowledge($job->message);
+
+        unset($this->_jobs[$index]);
+
+        return true;
     }
 
     /**
