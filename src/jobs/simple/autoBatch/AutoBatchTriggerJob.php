@@ -214,7 +214,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             }
             catch (\Exception $e) {
                 foreach ($this->_jobs as $job) {
-                    $this->_consumer->reject($job->message, true);
+                    $this->_consumer->reject($job->getMessage(), true);
                 }
 
                 $canTrigger = self::triggerSet($atomic, $name, $jobClass::autoBatchDelay());
@@ -227,7 +227,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             }
 
             foreach ($this->_jobs as $job) {
-                $this->_consumer->acknowledge($job->message);
+                $this->_consumer->acknowledge($job->getMessage());
             }
         }
     }
@@ -249,13 +249,13 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             throw new ErrorException('Unknown job!');
         }
 
-        $exchange = $connection->getExchange($this::exchangeName());
+        $exchange = $connection->getExchange($job::exchangeName());
 
-        if (!$connection->redelivery($job, $job->message, $exchange, $error)) {
+        if (!$connection->redelivery($job, $job->getMessage(), $exchange, $error)) {
             return false;
         }
 
-        $this->_consumer->acknowledge($job->message);
+        $this->_consumer->acknowledge($job->getMessage());
 
         unset($this->_jobs[$index]);
 
