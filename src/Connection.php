@@ -375,7 +375,6 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * The time RPC Job waits for an response. In seconds.
-
      *
      * @var int|null
      */
@@ -790,10 +789,11 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue($exchangeName . '.rpc.callback' . ($this->rpcTimeout ? '.' . ($this->rpcTimeout * 2 * 1000) : ''));
-        $queue->addFlag(AmqpDestination::FLAG_IFUNUSED);
-        $queue->addFlag(AmqpDestination::FLAG_AUTODELETE);
-        $queue->addFlag(AmqpDestination::FLAG_DURABLE);
+        $queue = $this->_context->createQueue($exchangeName . '.rpc.callback.' . substr(md5(uniqid('', true)), 0, 8));
+        $queue->addFlag(AmqpQueue::FLAG_DURABLE);
+        $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
+        $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
+        $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
         $queue->setArgument('x-message-ttl', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 2 : null);
         $this->_context->declareQueue($queue);
 
