@@ -11,9 +11,9 @@ use yii\web\HttpException;
  *
  * @property string $className
  *
- * @property int    $statusCode
- * @property string $message
- * @property int    $code
+ * @property int       $statusCode
+ * @property string    $message
+ * @property mixed|int $code
  */
 class RpcExceptionResponseJob implements RpcResponseJob
 {
@@ -37,6 +37,6 @@ class RpcExceptionResponseJob implements RpcResponseJob
      */
     public function exception()
     {
-        return new HttpException($this->statusCode, $this->message, $this->code);
+        return new HttpException($this->statusCode, $this->message, is_int($this->code) ? $this->code : 0);
     }
 }
