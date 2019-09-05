@@ -2,7 +2,6 @@
 
 namespace matrozov\yii2amqp\jobs\rpc;
 
-use Exception;
 use yii\web\HttpException;
 
 /**
@@ -21,7 +20,7 @@ class RpcExceptionResponseJob implements RpcResponseJob
     public $message;
     public $code;
 
-    public function __construct(Exception $exception = null)
+    public function __construct(\Throwable $exception = null)
     {
         if (!$exception) {
             return;
@@ -33,7 +32,7 @@ class RpcExceptionResponseJob implements RpcResponseJob
     }
 
     /**
-     * @return HttpException|Exception
+     * @return HttpException
      */
     public function exception()
     {
