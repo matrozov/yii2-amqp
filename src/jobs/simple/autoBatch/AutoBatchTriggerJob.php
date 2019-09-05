@@ -10,7 +10,6 @@ use Interop\Queue\Exception;
 use Interop\Queue\Exception\InvalidDestinationException;
 use Interop\Queue\Exception\InvalidMessageException;
 use matrozov\yii2amqp\Connection;
-use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\jobs\DelayedJob;
 use matrozov\yii2amqp\jobs\DelayedJobTrait;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
@@ -163,7 +162,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      *
      * @throws ErrorException
      * @throws Exception
-     * @throws \Exception
+     * @throws \Throwable
      */
     public function execute(Connection $connection, AmqpMessage $message)
     {
@@ -212,7 +211,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             try {
                 $jobClass::executeAutoBatch($connection, $this->_jobs, $this);
             }
-            catch (\Exception $e) {
+            catch (\Throwable $e) {
                 foreach ($this->_jobs as $job) {
                     $this->_consumer->reject($job->getMessage(), true);
                 }
@@ -239,7 +238,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      *
      * @return bool
      * @throws ErrorException
-     * @throws Exception
+     * @throws Throwable
      */
     public function redelivery(Connection $connection, AutoBatchExecuteJob $job, $error): bool
     {
