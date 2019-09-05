@@ -1011,7 +1011,7 @@ class Connection extends Component implements BootstrapInterface
 
                 $this->replyRpcMessage($message, $responseJob);
             }
-            catch (Exception $exception) {
+            catch (Throwable $exception) {
                 $responseJob = null;
 
                 $exceptionInt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
@@ -1019,7 +1019,7 @@ class Connection extends Component implements BootstrapInterface
 
             $this->afterExecute($job, $responseJob, $message, $consumer);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if (!$exceptionInt) {
                 $exceptionExt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
             }
@@ -1043,7 +1043,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
      */
-    protected function handleRpcMessageException(Exception $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    protected function handleRpcMessageException(Throwable $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         if (($exception instanceof HttpException) || ($exception instanceof RpcTransferableException)) {
             $responseJob = new RpcExceptionResponseJob($exception);

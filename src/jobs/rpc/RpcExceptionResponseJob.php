@@ -21,7 +21,7 @@ class RpcExceptionResponseJob implements RpcResponseJob
     public $message;
     public $code;
 
-    public function __construct(Exception $exception = null)
+    public function __construct(\Throwable $exception = null)
     {
         if (!$exception) {
             return;
