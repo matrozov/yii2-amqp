@@ -13,16 +13,17 @@ trait ModelRequestJobTrait
 {
     /**
      * @param Connection|null $connection
+     * @param string|null     $exchangeName
      *
      * @return bool|RpcResponseJob|null
-     * @throws
+     * @throws \yii\base\ErrorException
      */
-    protected function send(Connection $connection = null)
+    protected function send(Connection $connection = null, $exchangeName = null)
     {
         $connection = Connection::instance($connection);
 
         /* @var ModelRequestJob $this */
-        return $connection->send($this);
+        return $connection->send($this, $exchangeName);
     }
 
     /**

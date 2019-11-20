@@ -16,14 +16,15 @@ trait FindAllModelRequestJobTrait
     use ModelRequestJobTrait;
 
     /**
-     * @param Connection $connection
+     * @param Connection|null $connection
+     * @param string|null     $exchangeName
      *
      * @return array|bool|null
      * @throws
      */
-    public function findAll(Connection $connection = null)
+    public function findAll(Connection $connection = null, $exchangeName = null)
     {
-        $response = $this->send($connection);
+        $response = $this->send($connection, $exchangeName);
 
         /* @var ModelResponseJob $response */
         if (!$this->afterModelRequest($response)) {

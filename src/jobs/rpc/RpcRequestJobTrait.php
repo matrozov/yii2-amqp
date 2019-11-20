@@ -12,17 +12,18 @@ use yii\base\ErrorException;
 trait RpcRequestJobTrait
 {
     /**
-     * @param Connection $connection
+     * @param Connection|null $connection
+     * @param string|null     $exchangeName
      *
      * @return RpcRequestJob|bool
      * @throws ErrorException
      */
-    public function send(Connection $connection = null)
+    public function send(Connection $connection = null, $exchangeName = null)
     {
         $connection = Connection::instance($connection);
 
         /* @var RpcRequestJob $this */
-        $response = $connection->send($this);
+        $response = $connection->send($this, $exchangeName);
 
         if (!($response instanceof RpcResponseJob)) {
             throw new ErrorException('Response must be instance of RpcResponseJob');

@@ -12,16 +12,17 @@ use yii\base\ErrorException;
 trait RequestJobTrait
 {
     /**
-     * @param Connection $connection
+     * @param Connection|null $connection
+     * @param string|null     $exchangeName
      *
      * @return bool
      * @throws ErrorException
      */
-    public function send(Connection $connection = null)
+    public function send(Connection $connection = null, $exchangeName = null)
     {
         $connection = Connection::instance($connection);
 
         /* @var RequestJob $this */
-        return $connection->send($this);
+        return $connection->send($this, $exchangeName);
     }
 }
