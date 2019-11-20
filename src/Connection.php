@@ -7,7 +7,6 @@ use Enqueue\AmqpBunny\AmqpConnectionFactory as AmqpBunnyConnectionFactory;
 use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
-use Exception;
 use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
@@ -861,7 +860,7 @@ class Connection extends Component implements BootstrapInterface
                 break;
             }
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if ($pair_id) {
                 $this->debugSendEnd($pair_id, $exception);
             }
@@ -896,7 +895,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->sendMessage($producer, $target, $message, $job);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if ($pair_id) {
                 $this->debugSendEnd($pair_id, $exception);
             }
@@ -946,7 +945,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
-     * @throws Exception
+     * @throws Throwable
      */
     protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
     {
@@ -968,7 +967,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->sendMessage($producer, $queue, $responseMessage, $responseJob);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if ($pair_id) {
                 $this->debugSendEnd($pair_id, $exception);
             }
@@ -1011,7 +1010,7 @@ class Connection extends Component implements BootstrapInterface
 
                 $this->replyRpcMessage($message, $responseJob);
             }
-            catch (Exception $exception) {
+            catch (Throwable $exception) {
                 $responseJob = null;
 
                 $exceptionInt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
@@ -1019,7 +1018,7 @@ class Connection extends Component implements BootstrapInterface
 
             $this->afterExecute($job, $responseJob, $message, $consumer);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if (!$exceptionInt) {
                 $exceptionExt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
             }
@@ -1033,17 +1032,17 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param Exception     $exception
+     * @param Throwable     $exception
      * @param RpcExecuteJob $job
      * @param AmqpMessage   $message
      * @param AmqpConsumer  $consumer
      *
-     * @return Exception|null
+     * @return Throwable|null
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
      */
-    protected function handleRpcMessageException(Exception $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    protected function handleRpcMessageException(Throwable $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         if (($exception instanceof HttpException) || ($exception instanceof RpcTransferableException)) {
             $responseJob = new RpcExceptionResponseJob($exception);
@@ -1084,7 +1083,7 @@ class Connection extends Component implements BootstrapInterface
      * @param AmqpMessage  $message
      * @param AmqpConsumer $consumer
      *
-     * @throws
+     * @throws Throwable
      */
     protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
@@ -1097,13 +1096,13 @@ class Connection extends Component implements BootstrapInterface
             try {
                 $job->execute($this, $message);
             }
-            catch (Exception $exception) {
+            catch (Throwable $exception) {
                 $exceptionInt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
             }
 
             $this->afterExecute($job, null, $message, $consumer);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if (!$exceptionInt) {
                 $exceptionExt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
             }
@@ -1117,16 +1116,16 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param Exception    $exception
+     * @param Throwable    $exception
      * @param ExecuteJob   $job
      * @param AmqpMessage  $message
      * @param AmqpConsumer $consumer
      *
-     * @return Exception|null
+     * @return Throwable|null
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
      */
-    protected function handleSimpleMessageException(Exception $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
+    protected function handleSimpleMessageException(Throwable $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
         if ($exception instanceof HttpException) {
             Yii::$app->getErrorHandler()->logException($exception);
@@ -1157,7 +1156,7 @@ class Connection extends Component implements BootstrapInterface
      * @return ExecuteJob
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
-     * @throws Exception
+     * @throws Throwable
      */
     public function messageToJob(AmqpMessage $message, AmqpConsumer $consumer)
     {
@@ -1179,7 +1178,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $job = $this->serializer->deserialize($message->getBody(), $jobClassName);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             $this->redelivery(null, $message, $consumer->getQueue(), $exception);
 
             $consumer->acknowledge($message);
@@ -1249,7 +1248,7 @@ class Connection extends Component implements BootstrapInterface
             try {
                 $this->handleMessage($message, $consumer);
             }
-            catch (Exception $exception) {
+            catch (Throwable $exception) {
                 if ($pair_id) {
                     $this->debugExecuteEnd($pair_id, $exception);
                 }
@@ -1429,7 +1428,7 @@ class Connection extends Component implements BootstrapInterface
             try {
                 $producer->send($target, $message);
             }
-            catch (Exception $e) {
+            catch (Throwable $e) {
                 Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "' . $e->getMessage() . '", try: ' . $try . '/3', 0, 1, __FILE__, __LINE__, $e));
 
                 $try++;
@@ -1453,12 +1452,12 @@ class Connection extends Component implements BootstrapInterface
      * @param BaseJob|null        $job
      * @param AmqpMessage         $message
      * @param AmqpDestination     $target
-     * @param Exception|Throwable $error
+     * @param Throwable $error
      *
      * @return bool
      * @throws ErrorException
      * @throws \Interop\Queue\Exception
-     * @throws Exception
+     * @throws Throwable
      */
     public function redelivery($job, AmqpMessage $message, AmqpDestination $target, $error)
     {
@@ -1489,7 +1488,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->sendMessage($producer, $target, $newMessage, $job);
         }
-        catch (Exception $exception) {
+        catch (Throwable $exception) {
             if ($pair_id) {
                 $this->debugSendEnd($pair_id, $exception);
             }
@@ -1641,9 +1640,9 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param string         $pair_id
-     * @param Exception|null $exception
+     * @param Throwable|null $exception
      */
-    protected function debugExecuteEnd(string $pair_id, Exception $exception = null)
+    protected function debugExecuteEnd(string $pair_id, Throwable $exception = null)
     {
         if (!$this->debugger) {
             return;
@@ -1727,11 +1726,11 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param string         $pair_id
-     * @param Exception|null $exception
+     * @param Throwable|null $exception
      * @param array          $fields
      *
      */
-    protected function debugSendEnd(string $pair_id, Exception $exception = null, array $fields = [])
+    protected function debugSendEnd(string $pair_id, Throwable $exception = null, array $fields = [])
     {
         if (!$this->debugger) {
             return;
