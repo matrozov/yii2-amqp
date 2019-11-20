@@ -4,8 +4,10 @@ namespace matrozov\yii2amqp\serializers;
 
 use matrozov\yii2amqp\jobs\BaseJob;
 use Yii;
+use yii\base\DynamicModel;
 use yii\base\ErrorException;
 use yii\base\Model;
+use yii\helpers\ArrayHelper;
 
 /**
  * Interface Serializer
@@ -112,14 +114,23 @@ abstract class Serializer
             return Yii::createObject($result);
         }
 
-        /** @var Model $model */
-        $model = Yii::createObject($result['class']);
+        $className = ArrayHelper::remove($result, 'class');
+        $scenario  = ArrayHelper::remove($result, 'scenario');
 
-        if (isset($result['scenario'])) {
-            $model->setScenario($result['scenario']);
+        if (is_subclass_of($className, DynamicModel::class)) {
+            /** @var DynamicModel $model */
+            $model = Yii::createObject($className, [
+                array_keys($result),
+            ]);
+        }
+        else {
+            /** @var Model $model */
+            $model = Yii::createObject($className);
         }
 
-        unset($result['class'], $result['scenario']);
+        if (!empty($scenario)) {
+            $model->setScenario($scenario);
+        }
 
         if (!empty($result) && !$model->load($result, '')) {
             throw new ErrorException('Can\'t load model params');
