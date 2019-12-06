@@ -24,9 +24,9 @@ trait DeleteModelRequestJobTrait
      */
     public function delete(Connection $connection = null, $exchangeName = null)
     {
+        /* @var ModelResponseJob $response */
         $response = $this->send($connection, $exchangeName);
 
-        /* @var ModelResponseJob $response */
         if (!$this->afterModelRequest($response)) {
             return false;
         }

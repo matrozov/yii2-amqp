@@ -15,7 +15,7 @@ trait RpcRequestJobTrait
      * @param Connection|null $connection
      * @param string|null     $exchangeName
      *
-     * @return RpcRequestJob|bool
+     * @return RpcResponseJob|bool
      * @throws ErrorException
      */
     public function send(Connection $connection = null, $exchangeName = null)
