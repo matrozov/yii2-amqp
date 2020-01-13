@@ -1248,7 +1248,8 @@ class Connection extends Component implements BootstrapInterface
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
 
-        $pingQueue = $this->_context->createTemporaryQueue();
+        $pingQueue = $this->_context->createQueue('ping.queue.'.substr(md5(uniqid('', true)), 0, 8));
+        $pingQueue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
         $this->_context->declareQueue($pingQueue);
         $pingConsumer = $this->_context->createConsumer($pingQueue);
         $pingProducer = $this->_context->createProducer();
