@@ -2,11 +2,11 @@
 
 namespace matrozov\yii2amqp\debugger\targets;
 
+use matrozov\yii2amqp\debugger\Target;
 use stdClass;
 use yii\base\InvalidConfigException;
 use yii\di\Instance;
 use yii\elasticsearch\Connection;
-use matrozov\yii2amqp\debugger\Target;
 use yii\helpers\Json;
 
 /**
@@ -43,7 +43,7 @@ class ElasticsearchTarget extends Target
     /**
      * @param array $log
      *
-     * @return array
+     * @return string
      */
     public function prepareLog($log)
     {
@@ -92,8 +92,8 @@ class ElasticsearchTarget extends Target
             return;
         }
 
-        $logs    = array_map([$this, 'prepareLog'], $this->_logs);
-        $content = implode(PHP_EOL, $logs) . PHP_EOL;
+        $logs = array_map([$this, 'prepareLog'], $this->_logs);
+        $content = implode(PHP_EOL, $logs).PHP_EOL;
 
         $this->db->post([$this->index, $this->type, '_bulk'], $this->dbOptions, $content);
 

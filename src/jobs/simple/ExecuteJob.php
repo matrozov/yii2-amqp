@@ -17,5 +17,6 @@ interface ExecuteJob extends BaseJob
     public function execute(Connection $connection, AmqpMessage $message);
 
     public function getMessage(): AmqpMessage;
+
     public function setMessage(AmqpMessage $message);
 }

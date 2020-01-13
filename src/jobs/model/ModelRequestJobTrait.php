@@ -4,6 +4,7 @@ namespace matrozov\yii2amqp\jobs\model;
 
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
+use yii\base\ErrorException;
 
 /**
  * Trait ModelRequestJobTrait
@@ -16,7 +17,7 @@ trait ModelRequestJobTrait
      * @param string|null     $exchangeName
      *
      * @return bool|RpcResponseJob|null
-     * @throws \yii\base\ErrorException
+     * @throws ErrorException
      */
     protected function send(Connection $connection = null, $exchangeName = null)
     {

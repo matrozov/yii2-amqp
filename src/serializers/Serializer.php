@@ -64,7 +64,7 @@ abstract class Serializer
         if ($data instanceof Model) {
             $result = $this->iterateArray($data->toArray([], [], false));
 
-            $result['class']    = get_class($data);
+            $result['class'] = get_class($data);
             $result['scenario'] = $data->getScenario();
 
             return $result;
@@ -115,7 +115,7 @@ abstract class Serializer
         }
 
         $className = ArrayHelper::remove($result, 'class');
-        $scenario  = ArrayHelper::remove($result, 'scenario');
+        $scenario = ArrayHelper::remove($result, 'scenario');
 
         if (is_subclass_of($className, DynamicModel::class)) {
             /** @var DynamicModel $model */

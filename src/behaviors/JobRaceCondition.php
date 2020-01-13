@@ -79,13 +79,14 @@ class JobRaceCondition extends Behavior
         $chain = [];
 
         foreach ($this->attributes as $attribute) {
-            $attribute = (array) $attribute;
+            $attribute = (array)$attribute;
             $chain_new = [];
 
             foreach ($attribute as $attr) {
                 if (empty($chain)) {
                     $chain_new[] = [$attr];
-                } else {
+                }
+                else {
                     foreach ($chain as $key => $item) {
                         $chain_new[] = array_merge($item, [$attr]);
                     }

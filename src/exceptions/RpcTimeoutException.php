@@ -14,8 +14,8 @@ class RpcTimeoutException extends HttpException
     /**
      * RpcTimeoutException constructor.
      *
-     * @param string|null     $message
-     * @param int             $code
+     * @param string|null    $message
+     * @param int            $code
      * @param Exception|null $previous
      */
     public function __construct($message = null, $code = 0, Exception $previous = null)

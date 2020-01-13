@@ -11,7 +11,7 @@ use yii\helpers\Console;
  * @package matrozov\yii2amqp
  *
  * @property Connection $connection
- * @property int $timeout
+ * @property int        $timeout
  */
 class Command extends Controller
 {
@@ -51,19 +51,5 @@ class Command extends Controller
         $queueNames = func_get_args();
 
         $this->connection->listen($queueNames, $this->timeout);
-    }
-
-    /**
-     */
-    public function actionListenWatchdog()
-    {
-        if (!$this->connection->listenWatchdog($this->timeout)) {
-            Console::error('Watchdog: Listener unhealth!');
-            Yii::error('Watchdog: Listener unhealth!');
-
-            exit(1);
-        }
-
-        Console::output('OK');
     }
 }

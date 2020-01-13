@@ -7,15 +7,16 @@ use Enqueue\AmqpBunny\AmqpConnectionFactory as AmqpBunnyConnectionFactory;
 use Enqueue\AmqpExt\AmqpConnectionFactory as AmqpExtConnectionFactory;
 use Enqueue\AmqpLib\AmqpConnectionFactory as AmqpLibConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
-use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpConnectionFactory;
 use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpContext;
+use Interop\Amqp\AmqpDestination;
 use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\AmqpProducer;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Interop\Amqp\Impl\AmqpBind;
+use Interop\Queue\Exception;
 use Interop\Queue\Exception\DeliveryDelayNotSupportedException;
 use matrozov\yii2amqp\debugger\Debugger;
 use matrozov\yii2amqp\events\ExecuteEvent;
@@ -56,42 +57,42 @@ use yii\web\Request;
 
 /**
  * Class Connection
- * @package matrozov\yii2amqp
+ * @package  matrozov\yii2amqp
  *
- * @property AmqpContext    $context
+ * @property AmqpContext       $context
  *
- * @property string|null    $dsn
- * @property string|null    $host
- * @property int|null       $port
- * @property string|null    $user
- * @property string|null    $password
- * @property string|null    $vhost
+ * @property string|null       $dsn
+ * @property string|null       $host
+ * @property int|null          $port
+ * @property string|null       $user
+ * @property string|null       $password
+ * @property string|null       $vhost
  *
- * @property bool           $keepalive
+ * @property bool              $keepalive
  *
- * @property float|null     $readTimeout
- * @property float|null     $writeTimeout
- * @property float|null     $connectionTimeout
+ * @property float|null        $readTimeout
+ * @property float|null        $writeTimeout
+ * @property float|null        $connectionTimeout
  *
- * @property float|null     $heartbeat
- * @property bool|null      $persisted
- * @property bool|null      $lazy
+ * @property float|null        $heartbeat
+ * @property bool|null         $persisted
+ * @property bool|null         $lazy
  *
- * @property bool|null      $qosGlobal
- * @property int|null       $qosPrefetchSize
- * @property int|null       $qosPrefetchCount
+ * @property bool|null         $qosGlobal
+ * @property int|null          $qosPrefetchSize
+ * @property int|null          $qosPrefetchCount
  *
- * @property bool|null      $sslOn
- * @property bool|null      $sslVerify
- * @property string|null    $sslCacert
- * @property string|null    $sslCert
- * @property string|null    $sslKey
+ * @property bool|null         $sslOn
+ * @property bool|null         $sslVerify
+ * @property string|null       $sslCacert
+ * @property string|null       $sslCert
+ * @property string|null       $sslKey
  *
- * @property string         $driver
+ * @property string            $driver
  *
- * @property int            $maxAttempts
- * @property int|null       $priority
- * @property float|int|null $ttl
+ * @property int               $maxAttempts
+ * @property int|null          $priority
+ * @property float|int|null    $ttl
  *
  * @property []array        $exchanges
  * @property []array        $queues
@@ -103,13 +104,11 @@ use yii\web\Request;
  * @property []array        $defaultExchange
  * @property []array        $defaultBind
  *
- * @property int|null       $rpcTimeout
+ * @property int|null          $rpcTimeout
  *
  * @property Serializer|string $serializer
  *
- * @property false|int      $watchdog
- *
- * @property Debugger       $debugger
+ * @property Debugger          $debugger
  */
 class Connection extends Component implements BootstrapInterface
 {
@@ -125,7 +124,6 @@ class Connection extends Component implements BootstrapInterface
     const EVENT_AFTER_SEND     = 'afterSend';
     const EVENT_BEFORE_EXECUTE = 'beforeExecute';
     const EVENT_AFTER_EXECUTE  = 'afterExecute';
-
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -170,14 +168,12 @@ class Connection extends Component implements BootstrapInterface
      */
     public $vhost;
 
-
     /**
      * Keepalive connection
      *
      * @var bool
      */
     public $keepalive = false;
-
 
     /**
      * The time PHP socket waits for an information while reading. In seconds.
@@ -200,7 +196,6 @@ class Connection extends Component implements BootstrapInterface
      */
     public $connectionTimeout;
 
-
     /**
      * The periods of time PHP pings the broker in order to prolong the connection timeout. In seconds.
      *
@@ -221,7 +216,6 @@ class Connection extends Component implements BootstrapInterface
      * @var bool|null
      */
     public $lazy;
-
 
     /**
      * If false prefetch_count option applied separately to each new consumer on the channel
@@ -244,7 +238,6 @@ class Connection extends Component implements BootstrapInterface
      * @var int|null
      */
     public $qosPrefetchCount;
-
 
     /**
      * Defines whether secure connection should be used or not.
@@ -281,14 +274,12 @@ class Connection extends Component implements BootstrapInterface
      */
     public $sslKey;
 
-
     /**
      * Defines the amqp interop transport
      *
      * @var string
      */
     public $driver = self::ENQUEUE_AMQP_LIB;
-
 
     /**
      * Max attempts to requeue message
@@ -310,7 +301,6 @@ class Connection extends Component implements BootstrapInterface
      * @var float|int|null
      */
     public $ttl = null;
-
 
     /**
      * Queue config list
@@ -384,13 +374,6 @@ class Connection extends Component implements BootstrapInterface
      */
     public $serializer = JsonSerializer::class;
 
-
-    /**
-     * @var bool
-     */
-    public $watchdog = false;
-
-
     /**
      * @var array|null
      */
@@ -424,13 +407,10 @@ class Connection extends Component implements BootstrapInterface
      */
     protected $_exchanges = [];
 
-
-
     /**
      * @var Connection
      */
     protected static $_instance;
-
 
     /**
      * @inheritdoc
@@ -449,19 +429,19 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
-            $this->_debug_request_id     = uniqid('', true);
+            $this->_debug_request_id = uniqid('', true);
             $this->_debug_request_action = Yii::$app->requestedAction ? Yii::$app->requestedAction->getUniqueId() : '';
 
-            Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function() {
+            Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function () {
                 $this->_debug_request_id = uniqid('', true);
             });
 
-            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function() {
+            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function () {
                 $this->_debug_request_action = Yii::$app->requestedAction->getUniqueId();
             });
 
             if (Yii::$app->request instanceof Request) {
-                Yii::$app->on(Application::EVENT_AFTER_ACTION, function() {
+                Yii::$app->on(Application::EVENT_AFTER_ACTION, function () {
                     Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
                 });
             }
@@ -529,7 +509,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $app->controllerMap[$this->getCommandId()] = [
-            'class' => Command::class,
+            'class'      => Command::class,
             'connection' => $this,
         ];
     }
@@ -546,49 +526,56 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $config = [
-            'dsn'                => $this->dsn,
-            'host'               => $this->host,
-            'port'               => $this->port,
-            'user'               => $this->user,
-            'pass'               => $this->password,
-            'vhost'              => $this->vhost,
+            'dsn'   => $this->dsn,
+            'host'  => $this->host,
+            'port'  => $this->port,
+            'user'  => $this->user,
+            'pass'  => $this->password,
+            'vhost' => $this->vhost,
 
-            'keepalive'          => $this->keepalive,
+            'keepalive' => $this->keepalive,
 
             'read_timeout'       => $this->readTimeout,
             'write_timeout'      => $this->writeTimeout,
             'connection_timeout' => $this->connectionTimeout,
 
-            'heartbeat'          => $this->heartbeat,
-            'persisted'          => $this->persisted,
-            'lazy'               => $this->lazy,
+            'heartbeat' => $this->heartbeat,
+            'persisted' => $this->persisted,
+            'lazy'      => $this->lazy,
 
             'qos_global'         => $this->qosGlobal,
             'qos_prefetch_size'  => $this->qosPrefetchSize,
             'qos_prefetch_count' => $this->qosPrefetchCount,
 
-            'ssl_on'             => $this->sslOn,
-            'ssl_verify'         => $this->sslVerify,
-            'ssl_cacert'         => $this->sslCacert,
-            'ssl_cert'           => $this->sslCert,
-            'ssl_key'            => $this->sslKey,
+            'ssl_on'     => $this->sslOn,
+            'ssl_verify' => $this->sslVerify,
+            'ssl_cacert' => $this->sslCacert,
+            'ssl_cert'   => $this->sslCert,
+            'ssl_key'    => $this->sslKey,
         ];
 
-        $config = array_filter($config, function($value) {
+        $config = array_filter($config, function ($value) {
             return null !== $value;
         });
 
         switch ($this->driver) {
-            case self::ENQUEUE_AMQP_LIB: {
-                $connectionClass = AmqpLibConnectionFactory::class;
-            } break;
-            case self::ENQUEUE_AMQP_EXT: {
-                $connectionClass = AmqpExtConnectionFactory::class;
-            } break;
-            case self::ENQUEUE_AMQP_BUNNY: {
-                $connectionClass = AmqpBunnyConnectionFactory::class;
-            } break;
-            default: {
+            case self::ENQUEUE_AMQP_LIB:
+                {
+                    $connectionClass = AmqpLibConnectionFactory::class;
+                }
+                break;
+            case self::ENQUEUE_AMQP_EXT:
+                {
+                    $connectionClass = AmqpExtConnectionFactory::class;
+                }
+                break;
+            case self::ENQUEUE_AMQP_BUNNY:
+                {
+                    $connectionClass = AmqpBunnyConnectionFactory::class;
+                }
+                break;
+            default:
+            {
                 throw new InvalidConfigException('Invalid driver');
             }
         }
@@ -619,15 +606,6 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @throws InvalidConfigException
-     */
-    public function reopen()
-    {
-        $this->close();
-        $this->open();
-    }
-
-    /**
      * Setup queues, exchanges and bindings
      *
      * @throws
@@ -639,7 +617,7 @@ class Connection extends Component implements BootstrapInterface
 
             foreach (['name', 'flags', 'arguments'] as $field) {
                 if (!key_exists($field, $queueConfig)) {
-                    throw new InvalidConfigException('Queue config must contain `' . $field . '` field');
+                    throw new InvalidConfigException('Queue config must contain `'.$field.'` field');
                 }
             }
 
@@ -656,7 +634,7 @@ class Connection extends Component implements BootstrapInterface
 
             foreach (['name', 'type', 'flags', 'arguments'] as $field) {
                 if (!key_exists($field, $exchangeConfig)) {
-                    throw new InvalidConfigException('Exchange config must contain `' . $field . '` field');
+                    throw new InvalidConfigException('Exchange config must contain `'.$field.'` field');
                 }
             }
 
@@ -674,7 +652,7 @@ class Connection extends Component implements BootstrapInterface
 
             foreach (['queue', 'exchange', 'routingKey', 'flags', 'arguments'] as $field) {
                 if (!key_exists($field, $bindConfig)) {
-                    throw new InvalidConfigException('Bind config must contain `' . $field . '` field');
+                    throw new InvalidConfigException('Bind config must contain `'.$field.'` field');
                 }
             }
 
@@ -686,13 +664,7 @@ class Connection extends Component implements BootstrapInterface
                 throw new ErrorException('Can\'t bind unknown Exchange!');
             }
 
-            $this->_context->bind(new AmqpBind(
-                $this->_queues[$bindConfig['queue']],
-                $this->_exchanges[$bindConfig['exchange']],
-                $bindConfig['routingKey'],
-                $bindConfig['flags'],
-                $bindConfig['arguments']
-            ));
+            $this->_context->bind(new AmqpBind($this->_queues[$bindConfig['queue']], $this->_exchanges[$bindConfig['exchange']], $bindConfig['routingKey'], $bindConfig['flags'], $bindConfig['arguments']));
         }
     }
 
@@ -716,7 +688,7 @@ class Connection extends Component implements BootstrapInterface
     public function getExchange(string $exchangeName): AmqpTopic
     {
         if (!isset($this->_exchanges[$exchangeName])) {
-            throw new ErrorException('Exchange with name `' . $exchangeName . '` not found!');
+            throw new ErrorException('Exchange with name `'.$exchangeName.'` not found!');
         }
 
         return $this->_exchanges[$exchangeName];
@@ -731,7 +703,7 @@ class Connection extends Component implements BootstrapInterface
     public function getQueue(string $queueName): AmqpQueue
     {
         if (!isset($this->_queues[$queueName])) {
-            throw new ErrorException('Queue with name `' . $queueName . '` not found!');
+            throw new ErrorException('Queue with name `'.$queueName.'` not found!');
         }
 
         return $this->_queues[$queueName];
@@ -769,7 +741,7 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param AmqpDestination $target
-     * @param RpcRequestJob  $job
+     * @param RpcRequestJob   $job
      *
      * @return RpcResponseJob|bool|null
      * @throws
@@ -788,7 +760,7 @@ class Connection extends Component implements BootstrapInterface
             $exchangeName = $job::exchangeName();
         }
 
-        $queue = $this->_context->createQueue($exchangeName . '.rpc.callback.' . substr(md5(uniqid('', true)), 0, 8));
+        $queue = $this->_context->createQueue($exchangeName.'.rpc.callback.'.substr(md5(uniqid('', true)), 0, 8));
         $queue->addFlag(AmqpQueue::FLAG_DURABLE);
         $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
@@ -877,7 +849,7 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param AmqpDestination $target
-     * @param BaseJob        $job
+     * @param BaseJob         $job
      *
      * @return bool
      * @throws
@@ -944,7 +916,7 @@ class Connection extends Component implements BootstrapInterface
      * @return bool
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
-     * @throws \Interop\Queue\Exception
+     * @throws Exception
      * @throws Throwable
      */
     protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
@@ -1040,7 +1012,8 @@ class Connection extends Component implements BootstrapInterface
      * @return Throwable|null
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
-     * @throws \Interop\Queue\Exception
+     * @throws Exception
+     * @throws Throwable
      */
     protected function handleRpcMessageException(Throwable $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
@@ -1123,7 +1096,8 @@ class Connection extends Component implements BootstrapInterface
      *
      * @return Throwable|null
      * @throws ErrorException
-     * @throws \Interop\Queue\Exception
+     * @throws Throwable
+     * @throws Exception
      */
     protected function handleSimpleMessageException(Throwable $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
@@ -1155,7 +1129,7 @@ class Connection extends Component implements BootstrapInterface
      *
      * @return ExecuteJob
      * @throws ErrorException
-     * @throws \Interop\Queue\Exception
+     * @throws Exception
      * @throws Throwable
      */
     public function messageToJob(AmqpMessage $message, AmqpConsumer $consumer)
@@ -1167,7 +1141,7 @@ class Connection extends Component implements BootstrapInterface
                 $jobClassName = $this->jobNames[$jobClassName];
 
                 if (!class_exists($jobClassName)) {
-                    throw new ErrorException('Named job className not found: ' . $jobClassName);
+                    throw new ErrorException('Named job className not found: '.$jobClassName);
                 }
             }
             else {
@@ -1191,10 +1165,10 @@ class Connection extends Component implements BootstrapInterface
             $consumer->acknowledge($message);
 
             if (is_object($job)) {
-                throw new ErrorException('Can\'t execute unknown job type: ' . get_class($job));
+                throw new ErrorException('Can\'t execute unknown job type: '.get_class($job));
             }
             else {
-                throw new ErrorException('Can\'t execute unknown message: ' . gettype($job));
+                throw new ErrorException('Can\'t execute unknown message: '.gettype($job));
             }
         }
 
@@ -1223,7 +1197,7 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param []string|string|null $queueNames
-     * @param int  $timeout
+     * @param int $timeout
      *
      * @throws
      */
@@ -1240,9 +1214,9 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
-        $active = false;
+        $lastActive = time();
 
-        $callback = function(AmqpMessage $message, AmqpConsumer $consumer) use (&$active) {
+        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
             $pair_id = $this->debugExecuteStart($consumer, $message);
 
             try {
@@ -1260,56 +1234,44 @@ class Connection extends Component implements BootstrapInterface
                 $this->debugExecuteEnd($pair_id);
             }
 
-            $active = true;
+            $lastActive = time();
 
             return true;
         };
 
-        $watchdogPidFile = '/tmp/amqp-listen-' . getmypid() . '.watchdog';
-
-        if ($this->watchdog !== false) {
-            touch($watchdogPidFile);
-        }
-
-        $activeTimeout = time();
-
         $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
 
         foreach ($queueNames as $queueName) {
-            $queue    = $this->getQueue($queueName);
+            $queue = $this->getQueue($queueName);
             $consumer = $this->_context->createConsumer($queue);
 
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
+
+        $pingQueue = $this->_context->createTemporaryQueue();
+        $this->_context->declareQueue($pingQueue);
+        $pingConsumer = $this->_context->createConsumer($pingQueue);
+        $pingProducer = $this->_context->createProducer();
+
+        $subscriptionConsumer->subscribe($pingConsumer, function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
+            $consumer->acknowledge($message);
+
+            $lastActive = time();
+
+            return true;
+        });
 
         while (true) {
             $start = microtime(true);
 
             $loopTimeout = max(5, (int)$timeout);
 
-            $active = false;
-
             $subscriptionConsumer->consume($loopTimeout * 1000);
 
-            if ($active) {
-                $activeTimeout = time();
-            }
+            if (time() - $lastActive > 60 * 5) {
+                $pingMessage = $this->_context->createMessage();
 
-            if (time() - $activeTimeout > 60 * 5) {
-                $subscriptionConsumer->unsubscribeAll();
-
-                $this->reopen();
-
-                $subscriptionConsumer = $this->_context->createSubscriptionConsumer();
-
-                foreach ($queueNames as $queueName) {
-                    $queue    = $this->getQueue($queueName);
-                    $consumer = $this->_context->createConsumer($queue);
-
-                    $subscriptionConsumer->subscribe($consumer, $callback);
-                }
-
-                $activeTimeout = time();
+                $pingProducer->send($pingQueue, $pingMessage);
             }
 
             if ($timeout !== null) {
@@ -1319,14 +1281,6 @@ class Connection extends Component implements BootstrapInterface
             if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
                 break;
             }
-
-            if ($this->watchdog !== false) {
-                touch($watchdogPidFile);
-            }
-        }
-
-        if ($this->watchdog !== false) {
-            unlink($watchdogPidFile);
         }
 
         $subscriptionConsumer->unsubscribeAll();
@@ -1334,32 +1288,6 @@ class Connection extends Component implements BootstrapInterface
         $this->close();
 
         $this->debugFlush();
-    }
-
-    /**
-     * @param int|null $timeout
-     *
-     * @return bool
-     */
-    public function listenWatchdog($timeout = null)
-    {
-        if ($this->watchdog === false) {
-            return true;
-        }
-
-        $pid = exec('pgrep -o -f amqp/listen');
-
-        $watchdogPidFile = '/tmp/amqp-listen-' . $pid . '.watchdog';
-
-        $time = @filemtime($watchdogPidFile);
-
-        $timeout = $timeout ?? $this->watchdog;
-
-        if (!$time || !$pid || !file_exists('/proc/' . $pid) || (time() - $time > $timeout)) {
-            return false;
-        }
-
-        return true;
     }
 
     /**
@@ -1408,15 +1336,15 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @param AmqpProducer    $producer
+     *
      * @param AmqpDestination $target
-     * @param BaseJob|null    $job
      * @param AmqpMessage     $message
      *
-     * @param AmqpProducer    $producer
+     * @param BaseJob|null    $job
      *
      * @throws ErrorException
      * @throws InvalidConfigException
-     * @throws \Interop\Queue\Exception
      */
     protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
     {
@@ -1429,7 +1357,7 @@ class Connection extends Component implements BootstrapInterface
                 $producer->send($target, $message);
             }
             catch (Throwable $e) {
-                Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "' . $e->getMessage() . '", try: ' . $try . '/3', 0, 1, __FILE__, __LINE__, $e));
+                Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "'.$e->getMessage().'", try: '.$try.'/3', 0, 1, __FILE__, __LINE__, $e));
 
                 $try++;
 
@@ -1449,14 +1377,14 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param BaseJob|null        $job
-     * @param AmqpMessage         $message
-     * @param AmqpDestination     $target
-     * @param Throwable $error
+     * @param BaseJob|null    $job
+     * @param AmqpMessage     $message
+     * @param AmqpDestination $target
+     * @param Throwable       $error
      *
      * @return bool
      * @throws ErrorException
-     * @throws \Interop\Queue\Exception
+     * @throws Exception
      * @throws Throwable
      */
     public function redelivery($job, AmqpMessage $message, AmqpDestination $target, $error)
@@ -1481,7 +1409,7 @@ class Connection extends Component implements BootstrapInterface
 
         $this->prepareMessage($producer, $newMessage, $job);
 
-        $pair_id = $this->debugSendStart($target, $newMessage,  'redelivery', [
+        $pair_id = $this->debugSendStart($target, $newMessage, 'redelivery', [
             'redelivery_to' => $message->getMessageId(),
         ]);
 
@@ -1619,7 +1547,7 @@ class Connection extends Component implements BootstrapInterface
             return false;
         }
 
-        $this->_debug_request_id        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID);
+        $this->_debug_request_id = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID);
         $this->_debug_parent_message_id = $message->getMessageId();
 
         $pair_id = uniqid('', true);
@@ -1687,11 +1615,11 @@ class Connection extends Component implements BootstrapInterface
 
         if ($destination instanceof AmqpTopic) {
             $target_type = 'topic';
-            $target      = $destination->getTopicName();
+            $target = $destination->getTopicName();
         }
         elseif ($destination instanceof AmqpQueue) {
             $target_type = 'queue';
-            $target      = $destination->getQueueName();
+            $target = $destination->getQueueName();
         }
         else {
             throw new ErrorException('Unknown destination type');
@@ -1737,10 +1665,10 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'app_id'      => Yii::$app->id,
-            'time'        => microtime(true),
-            'request_id'  => $this->_debug_request_id,
-            'pair_id'     => $pair_id,
+            'app_id'     => Yii::$app->id,
+            'time'       => microtime(true),
+            'request_id' => $this->_debug_request_id,
+            'pair_id'    => $pair_id,
         ];
 
         if ($exception) {

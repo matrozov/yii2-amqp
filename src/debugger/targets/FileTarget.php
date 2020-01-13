@@ -35,7 +35,7 @@ class FileTarget extends Target
         parent::init();
 
         if ($this->logFile === null) {
-            $this->logFile = Yii::$app->getRuntimePath() . '/logs/amqp.log';
+            $this->logFile = Yii::$app->getRuntimePath().'/logs/amqp.log';
         }
         else {
             $this->logFile = Yii::getAlias($this->logFile);
@@ -85,7 +85,7 @@ class FileTarget extends Target
             return;
         }
 
-        $text = implode(PHP_EOL, array_map([$this, 'prepareLog'], $this->_logs)) . PHP_EOL;
+        $text = implode(PHP_EOL, array_map([$this, 'prepareLog'], $this->_logs)).PHP_EOL;
 
         $logPath = dirname($this->logFile);
         FileHelper::createDirectory($logPath, $this->dirMode, true);

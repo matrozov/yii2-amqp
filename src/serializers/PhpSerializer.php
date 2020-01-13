@@ -3,7 +3,6 @@
 namespace matrozov\yii2amqp\serializers;
 
 use matrozov\yii2amqp\jobs\BaseJob;
-use yii\helpers\Json;
 
 class PhpSerializer extends Serializer
 {

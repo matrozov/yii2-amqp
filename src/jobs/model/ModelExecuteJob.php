@@ -13,7 +13,9 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 interface ModelExecuteJob extends RpcExecuteJob
 {
     public function validate();
+
     public function hasErrors();
+
     public function getErrors();
 
     public function executeModel(Connection $connection, AmqpMessage $message);

@@ -20,9 +20,9 @@ use Memcache;
 use Memcached;
 use Redis;
 use Throwable;
+use yii\base\ErrorException;
 use yii\base\InvalidConfigException;
 use yii\redis\Connection as RedisConnection;
-use yii\base\ErrorException;
 
 /**
  * Class AutoBatchTriggerJob
@@ -68,10 +68,10 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
 
         $items = explode('\\', $jobClass);
 
-        $classNameWON    = array_pop($items);
+        $classNameWON = array_pop($items);
         $classNamePrefix = substr(md5($jobClass), 0, 8);
 
-        return $jobClass::exchangeName() . '.auto.batch.' . $classNamePrefix . '.' . $classNameWON;
+        return $jobClass::exchangeName().'.auto.batch.'.$classNamePrefix.'.'.$classNameWON;
     }
 
     /**
@@ -105,7 +105,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     protected static function sendToBatchQueue(Connection $connection, AmqpQueue $queue, AmqpMessage $message)
     {
         $newMessage = $connection->context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
-        $producer   = $connection->context->createProducer();
+        $producer = $connection->context->createProducer();
 
         $producer->send($queue, $newMessage);
     }
@@ -122,7 +122,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
         $trigger = new static();
         $trigger->jobClass = $jobClass;
         $trigger->finalize = $finalize;
-        $trigger->delay    = $immediate ? null : $jobClass::autoBatchDelay();
+        $trigger->delay = $immediate ? null : $jobClass::autoBatchDelay();
 
         $connection->send($trigger, $jobClass::exchangeName());
     }
@@ -141,10 +141,10 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     {
         /** @var AutoBatchExecuteJob $jobClass */
         $jobClass = get_class($job);
-        $name     = self::name($jobClass);
-        $atomic   = $job::autoBatchAtomicProvider();
+        $name = self::name($jobClass);
+        $atomic = $job::autoBatchAtomicProvider();
 
-        $queue    = self::getQueue($connection, $name, $jobClass::exchangeName(), $jobClass::autoBatchDelay());
+        $queue = self::getQueue($connection, $name, $jobClass::exchangeName(), $jobClass::autoBatchDelay());
         $connection->context->declareQueue($queue);
 
         self::sendToBatchQueue($connection, $queue, $message);
@@ -162,14 +162,14 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
      *
      * @throws ErrorException
      * @throws Exception
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function execute(Connection $connection, AmqpMessage $message)
     {
         /** @var AutoBatchExecuteJob $jobClass */
-        $jobClass   = $this->jobClass;
-        $name       = self::name($jobClass);
-        $atomic     = $jobClass::autoBatchAtomicProvider();
+        $jobClass = $this->jobClass;
+        $name = self::name($jobClass);
+        $atomic = $jobClass::autoBatchAtomicProvider();
         $batchCount = $jobClass::autoBatchCount();
 
         $queue = self::getQueue($connection, $name, $jobClass::exchangeName(), $jobClass::autoBatchDelay());
@@ -211,7 +211,7 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             try {
                 $jobClass::executeAutoBatch($connection, $this->_jobs, $this);
             }
-            catch (\Throwable $e) {
+            catch (Throwable $e) {
                 foreach ($this->_jobs as $job) {
                     $this->_consumer->reject($job->getMessage(), true);
                 }

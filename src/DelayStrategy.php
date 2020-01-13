@@ -47,7 +47,7 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
         $delayMessage->setRoutingKey($message->getRoutingKey());
 
         if ($dest instanceof AmqpTopic) {
-            $routingKey = $message->getRoutingKey() ? '.' . $message->getRoutingKey() : '';
+            $routingKey = $message->getRoutingKey() ? '.'.$message->getRoutingKey() : '';
 
             $name = sprintf('%s%s.topic.delay.%s', $dest->getTopicName(), $routingKey, $delay);
 
@@ -55,8 +55,9 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
             $delayQueue->addFlag(AmqpTopic::FLAG_DURABLE);
             $delayQueue->setArgument('x-message-ttl', $delay);
             $delayQueue->setArgument('x-dead-letter-exchange', $dest->getTopicName());
-            $delayQueue->setArgument('x-dead-letter-routing-key', (string) $delayMessage->getRoutingKey());
-        } elseif ($dest instanceof AmqpQueue) {
+            $delayQueue->setArgument('x-dead-letter-routing-key', (string)$delayMessage->getRoutingKey());
+        }
+        elseif ($dest instanceof AmqpQueue) {
             $name = sprintf('%s.queue.delay.%s', $dest->getQueueName(), $delay);
 
             $delayQueue = $context->createQueue($name);
@@ -64,11 +65,9 @@ class DelayStrategy implements \Enqueue\AmqpTools\DelayStrategy
             $delayQueue->setArgument('x-message-ttl', $delay);
             $delayQueue->setArgument('x-dead-letter-exchange', '');
             $delayQueue->setArgument('x-dead-letter-routing-key', $dest->getQueueName());
-        } else {
-            throw new InvalidDestinationException(sprintf('The destination must be an instance of %s but got %s.',
-                AmqpTopic::class.'|'.AmqpQueue::class,
-                get_class($dest)
-            ));
+        }
+        else {
+            throw new InvalidDestinationException(sprintf('The destination must be an instance of %s but got %s.', AmqpTopic::class.'|'.AmqpQueue::class, get_class($dest)));
         }
 
         $context->declareQueue($delayQueue);

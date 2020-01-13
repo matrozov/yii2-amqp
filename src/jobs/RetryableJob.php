@@ -12,7 +12,7 @@ use Throwable;
 interface RetryableJob
 {
     /**
-     * @param int                  $attempt
+     * @param int                 $attempt
      * @param Exception|Throwable $error
      *
      * @return bool

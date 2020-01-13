@@ -3,9 +3,6 @@
 namespace matrozov\yii2amqp\serializers;
 
 use matrozov\yii2amqp\jobs\BaseJob;
-use Yii;
-use yii\base\ErrorException;
-use yii\base\Model;
 use yii\helpers\Json;
 
 /**

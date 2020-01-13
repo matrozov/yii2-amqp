@@ -7,7 +7,6 @@ use Interop\Queue\Exception;
 use Interop\Queue\Exception\InvalidDestinationException;
 use Interop\Queue\Exception\InvalidMessageException;
 use matrozov\yii2amqp\Connection;
-use yii\base\ErrorException;
 use yii\base\InvalidConfigException;
 
 /**
@@ -20,11 +19,10 @@ trait AutoBatchExecuteJobTrait
      * @param Connection  $connection
      * @param AmqpMessage $message
      *
-     * @throws ErrorException
      * @throws Exception
+     * @throws InvalidConfigException
      * @throws InvalidDestinationException
      * @throws InvalidMessageException
-     * @throws InvalidConfigException
      */
     public function execute(Connection $connection, AmqpMessage $message)
     {

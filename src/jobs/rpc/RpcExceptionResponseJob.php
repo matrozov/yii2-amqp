@@ -2,13 +2,14 @@
 
 namespace matrozov\yii2amqp\jobs\rpc;
 
+use Throwable;
 use yii\web\HttpException;
 
 /**
  * Class RpcExceptionResponseJob
  * @package matrozov\yii2amqp\jobs\rpc
  *
- * @property string $className
+ * @property string    $className
  *
  * @property int       $statusCode
  * @property string    $message
@@ -20,15 +21,15 @@ class RpcExceptionResponseJob implements RpcResponseJob
     public $message;
     public $code;
 
-    public function __construct(\Throwable $exception = null)
+    public function __construct(Throwable $exception = null)
     {
         if (!$exception) {
             return;
         }
 
         $this->statusCode = ($exception instanceof HttpException) ? $exception->statusCode : 500;
-        $this->code       = $exception->getCode();
-        $this->message    = $exception->getMessage();
+        $this->code = $exception->getCode();
+        $this->message = $exception->getMessage();
     }
 
     /**

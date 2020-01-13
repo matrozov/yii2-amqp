@@ -5,10 +5,10 @@ namespace matrozov\yii2amqp\jobs\simple\autoBatch;
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\simple\RequestJob;
-use yii\redis\Connection as RedisConnection;
-use Redis;
 use Memcache;
 use Memcached;
+use Redis;
+use yii\redis\Connection as RedisConnection;
 
 /**
  * Interface AutoBatchExecuteJob

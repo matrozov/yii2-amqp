@@ -11,6 +11,9 @@ class ExitSignal
     private static $exit    = false;
     private static $handled = false;
 
+    /**
+     * @return bool
+     */
     public static function isSupported()
     {
         return extension_loaded('pcntl');
@@ -23,7 +26,7 @@ class ExitSignal
         }
 
         foreach ([SIGTERM, SIGINT, SIGHUP] as $signal) {
-            pcntl_signal($signal, [__NAMESPACE__ . '\ExitSignal', 'setExitFlag']);
+            pcntl_signal($signal, [__NAMESPACE__.'\ExitSignal', 'setExitFlag']);
         }
 
         static::$handled = true;
