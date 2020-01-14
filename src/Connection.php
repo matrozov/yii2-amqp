@@ -1269,7 +1269,7 @@ class Connection extends Component implements BootstrapInterface
 
             $subscriptionConsumer->consume($loopTimeout * 1000);
 
-            if (time() - $lastActive > 60 * 5) {
+            if (time() - $lastActive > 30) {
                 $pingMessage = $this->_context->createMessage();
 
                 $pingProducer->send($pingQueue, $pingMessage);
