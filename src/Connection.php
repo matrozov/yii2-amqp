@@ -1344,35 +1344,15 @@ class Connection extends Component implements BootstrapInterface
      *
      * @param BaseJob|null    $job
      *
-     * @throws ErrorException
-     * @throws InvalidConfigException
+     * @throws Exception
+     * @throws Exception\InvalidDestinationException
+     * @throws Exception\InvalidMessageException
      */
     protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
     {
         $this->beforeSend($target, $job, $message);
 
-        $try = 1;
-
-        while (true) {
-            try {
-                $producer->send($target, $message);
-            }
-            catch (Throwable $e) {
-                Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "'.$e->getMessage().'", try: '.$try.'/3', 0, 1, __FILE__, __LINE__, $e));
-
-                $try++;
-
-                if ($try > 3) {
-                    throw new ErrorException('Can\'t send message to queue. Connection closed!');
-                }
-
-                $this->reopen();
-
-                continue;
-            }
-
-            break;
-        }
+        $producer->send($target, $message);
 
         $this->afterSend($target, $job, $message);
     }
