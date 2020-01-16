@@ -606,6 +606,15 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @throws InvalidConfigException
+     */
+    public function reopen()
+    {
+        $this->close();
+        $this->open();
+    }
+
+    /**
      * Setup queues, exchanges and bindings
      *
      * @throws
@@ -1345,6 +1354,9 @@ class Connection extends Component implements BootstrapInterface
      * @param BaseJob|null    $job
      *
      * @throws ErrorException
+     * @throws Exception
+     * @throws Exception\InvalidDestinationException
+     * @throws Exception\InvalidMessageException
      * @throws InvalidConfigException
      */
     protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
