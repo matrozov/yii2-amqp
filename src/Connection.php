@@ -1354,9 +1354,6 @@ class Connection extends Component implements BootstrapInterface
      * @param BaseJob|null    $job
      *
      * @throws ErrorException
-     * @throws Exception
-     * @throws Exception\InvalidDestinationException
-     * @throws Exception\InvalidMessageException
      * @throws InvalidConfigException
      */
     protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
