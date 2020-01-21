@@ -774,6 +774,7 @@ class Connection extends Component implements BootstrapInterface
         $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
         $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
+        $queue->setArgument('x-expires', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 3 : null);
         $queue->setArgument('x-message-ttl', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 2 : null);
         $this->_context->declareQueue($queue);
 
