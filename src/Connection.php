@@ -379,14 +379,19 @@ class Connection extends Component implements BootstrapInterface
      */
     public $debugger = null;
 
-    /**
-     * @var string $_debug_request_id
-     * @var string $_debug_request_action
-     * @var string $_debug_parent_message_id
-     */
+    /** @var string */
     protected $_debug_request_id        = '';
+    /** @var string */
     protected $_debug_request_action    = '';
+    /** @var string */
     protected $_debug_parent_message_id = '';
+
+    /** @var AmqpQueue */
+    protected $_callbackQueue;
+    /** @var AmqpConsumer */
+    protected $_callbackConsumer;
+    /** @var AmqpProducer */
+    protected $_callbackProducer;
 
     /**
      * @var AmqpContext
@@ -590,6 +595,15 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $this->setup();
+
+        $this->_callbackQueue = $this->_context->createQueue('callback.'.substr(md5(uniqid('', true)), 0, 8));
+        $this->_callbackQueue->addFlag(AmqpQueue::FLAG_IFUNUSED);
+        $this->_callbackQueue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
+        $this->_callbackQueue->addFlag(AmqpQueue::FLAG_AUTODELETE);
+        $this->_callbackQueue->setArgument('x-message-ttl', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 2 : null);
+        $this->_context->declareQueue($this->_callbackQueue);
+        $this->_callbackConsumer = $this->_context->createConsumer($this->_callbackQueue);
+        $this->_callbackProducer = $this->_context->createProducer();
     }
 
     /**
@@ -601,17 +615,16 @@ class Connection extends Component implements BootstrapInterface
             return;
         }
 
+        if ($this->_callbackQueue) {
+            $this->_context->deleteQueue($this->_callbackQueue);
+
+            $this->_callbackQueue    = null;
+            $this->_callbackConsumer = null;
+            $this->_callbackProducer = null;
+        }
+
         $this->_context->close();
         $this->_context = null;
-    }
-
-    /**
-     * @throws InvalidConfigException
-     */
-    public function reopen()
-    {
-        $this->close();
-        $this->open();
     }
 
     /**
@@ -759,26 +772,7 @@ class Connection extends Component implements BootstrapInterface
     {
         $message = $this->createMessage($job);
 
-        if ($target instanceof AmqpTopic) {
-            $exchangeName = $target->getTopicName();
-        }
-        elseif ($target instanceof AmqpQueue) {
-            $exchangeName = $target->getQueueName();
-        }
-        else {
-            $exchangeName = $job::exchangeName();
-        }
-
-        $queue = $this->_context->createQueue($exchangeName.'.rpc.callback.'.substr(md5(uniqid('', true)), 0, 8));
-        $queue->addFlag(AmqpQueue::FLAG_DURABLE);
-        $queue->addFlag(AmqpQueue::FLAG_IFUNUSED);
-        $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
-        $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
-        $queue->setArgument('x-expires', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 3 : null);
-        $queue->setArgument('x-message-ttl', $this->rpcTimeout ? $this->rpcTimeout * 1000 * 2 : null);
-        $this->_context->declareQueue($queue);
-
-        $message->setReplyTo($queue->getQueueName());
+        $message->setReplyTo($this->_callbackQueue->getQueueName());
         $message->setCorrelationId(uniqid('', true));
 
         $producer = $this->_context->createProducer();
@@ -792,8 +786,6 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->sendMessage($producer, $target, $message, $job);
 
-            $consumer = $this->_context->createConsumer($queue);
-
             $timeout = $this->rpcTimeout;
 
             $result = null;
@@ -801,14 +793,14 @@ class Connection extends Component implements BootstrapInterface
             while (true) {
                 $start = microtime(true);
 
-                $responseMessage = $consumer->receive((int)$timeout * 1000);
+                $responseMessage = $this->_callbackConsumer->receive((int)$timeout * 1000 /* $timeout sec */);
 
                 if (!$responseMessage) {
                     throw new RpcTimeoutException('Queue timeout!');
                 }
 
                 if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
-                    $consumer->reject($responseMessage, true);
+                    $this->_callbackConsumer->reject($responseMessage, false);
 
                     if ($timeout !== null) {
                         $timeout -= (microtime(true) - $start);
@@ -821,7 +813,7 @@ class Connection extends Component implements BootstrapInterface
                     continue;
                 }
 
-                $consumer->acknowledge($responseMessage);
+                $this->_callbackConsumer->acknowledge($responseMessage);
 
                 $responseJob = $this->serializer->deserialize($responseMessage->getBody());
 
@@ -1258,22 +1250,6 @@ class Connection extends Component implements BootstrapInterface
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
 
-        $pingQueue = $this->_context->createQueue('ping.queue.'.substr(md5(uniqid('', true)), 0, 8));
-        $pingQueue->addFlag(AmqpQueue::FLAG_IFUNUSED);
-        $pingQueue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
-        $pingQueue->addFlag(AmqpQueue::FLAG_AUTODELETE);
-        $this->_context->declareQueue($pingQueue);
-        $pingConsumer = $this->_context->createConsumer($pingQueue);
-        $pingProducer = $this->_context->createProducer();
-
-        $subscriptionConsumer->subscribe($pingConsumer, function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
-            $consumer->acknowledge($message);
-
-            $lastActive = time();
-
-            return true;
-        });
-
         while (true) {
             $start = microtime(true);
 
@@ -1281,10 +1257,20 @@ class Connection extends Component implements BootstrapInterface
 
             $subscriptionConsumer->consume($loopTimeout * 1000);
 
-            if (time() - $lastActive > 30) {
+            if (time() - $lastActive > 60) {
                 $pingMessage = $this->_context->createMessage();
 
-                $pingProducer->send($pingQueue, $pingMessage);
+                $this->_callbackProducer->send($this->_callbackQueue, $pingMessage);
+
+                $responsePingMessage = $this->_callbackConsumer->receive(60 * 1000 /* 60 sec */);
+
+                if (!$responsePingMessage) {
+                    throw new RpcTimeoutException('Ping-Pong not reached!');
+                }
+
+                $this->_callbackConsumer->acknowledge($responsePingMessage);
+
+                $lastActive = time();
             }
 
             if ($timeout !== null) {
@@ -1356,35 +1342,15 @@ class Connection extends Component implements BootstrapInterface
      *
      * @param BaseJob|null    $job
      *
-     * @throws ErrorException
-     * @throws InvalidConfigException
+     * @throws Exception
+     * @throws Exception\InvalidDestinationException
+     * @throws Exception\InvalidMessageException
      */
     protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
     {
         $this->beforeSend($target, $job, $message);
 
-        $try = 1;
-
-        while (true) {
-            try {
-                $producer->send($target, $message);
-            }
-            catch (Throwable $e) {
-                Yii::$app->getErrorHandler()->logException(new ErrorException('Send error: "'.$e->getMessage().'", try: '.$try.'/3', 0, 1, __FILE__, __LINE__, $e));
-
-                $try++;
-
-                if ($try > 3) {
-                    throw new ErrorException('Can\'t send message to queue. Connection closed!');
-                }
-
-                $this->reopen();
-
-                continue;
-            }
-
-            break;
-        }
+        $producer->send($target, $message);
 
         $this->afterSend($target, $job, $message);
     }
