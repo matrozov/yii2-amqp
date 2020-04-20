@@ -47,6 +47,7 @@ use Yii;
 use yii\base\BootstrapInterface;
 use yii\base\Component;
 use yii\base\ErrorException;
+use yii\base\InvalidArgumentException;
 use yii\base\InvalidConfigException;
 use yii\console\Application;
 use yii\di\Instance;
@@ -779,12 +780,18 @@ class Connection extends Component implements BootstrapInterface
 
         $this->prepareMessage($producer, $message, $job);
 
-        $pair_id = $this->debugSendStart($target, $message, 'rpc', [
-            'job' => get_class($job),
-        ]);
+        $pair_id = false;
 
         try {
-            $this->sendMessage($producer, $target, $message, $job);
+            $this->beforeSend($target, $job, $message);
+
+            $pair_id = $this->debugSendStart($target, $message, 'rpc', [
+                'job' => get_class($job),
+            ]);
+
+            $producer->send($target, $message);
+
+            $this->afterSend($target, $job, $message);
 
             $timeout = $this->rpcTimeout;
 
@@ -864,10 +871,16 @@ class Connection extends Component implements BootstrapInterface
 
         $this->prepareMessage($producer, $message, $job);
 
-        $pair_id = $this->debugSendStart($target, $message, 'simple');
+        $pair_id = false;
 
         try {
-            $this->sendMessage($producer, $target, $message, $job);
+            $this->beforeSend($target, $job, $message);
+
+            $pair_id = $this->debugSendStart($target, $message, 'simple');
+
+            $producer->send($target, $message);
+
+            $this->afterSend($target, $job, $message);
         }
         catch (Throwable $exception) {
             if ($pair_id) {
@@ -912,13 +925,120 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param AmqpMessage    $message
+     * @param RpcRequestJob[] $jobs
+     * @return array
+     * @throws DeliveryDelayNotSupportedException
+     * @throws ErrorException
+     * @throws Exception
+     * @throws Exception\InvalidDestinationException
+     * @throws Exception\InvalidMessageException
+     * @throws InvalidConfigException
+     * @throws RpcTimeoutException
+     * @throws HttpException
+     */
+    public function sendBatch($jobs)
+    {
+        $this->open();
+
+        $producer = $this->_context->createProducer();
+
+        $linked = [];
+
+        foreach ($jobs as $idx => $job) {
+            if (!($job instanceof RpcRequestJob)) {
+                throw new InvalidArgumentException('Only RpcRequestJob allowed for sendBatch');
+            }
+
+            $message = $this->createMessage($job);
+
+            $correlationId = uniqid('', true);
+
+            $message->setReplyTo($this->_callbackQueue->getQueueName());
+            $message->setCorrelationId($correlationId);
+
+            $this->prepareMessage($producer, $message, $job);
+
+            $exchange = $this->getExchange($job::exchangeName());
+
+            $this->beforeSend($exchange, $job, $message);
+
+            $pair_id = $this->debugSendStart($exchange, $message, 'rpc', [
+                'job' => get_class($job),
+            ]);
+
+            $linked[$correlationId] = [
+                'idx'     => $idx,
+                'job'     => $job,
+                'message' => $message,
+                'pair_id' => $pair_id,
+            ];
+
+            $producer->send($exchange, $message);
+
+            $this->afterSend($exchange, $job, $message);
+        }
+
+        $timeout = $this->rpcTimeout;
+        $start   = microtime(true);
+
+        $success = 0;
+
+        $result = [];
+
+        while ($success < count($linked)) {
+            $responseMessage = $this->_callbackConsumer->receive((int)$timeout * 1000 /* $timeout sec */);
+
+            if (!$responseMessage) {
+                throw new RpcTimeoutException('Queue timeout!');
+            }
+
+            $correlationId = $responseMessage->getCorrelationId();
+
+            if (!array_key_exists($correlationId, $linked)) {
+                $this->_callbackConsumer->reject($responseMessage, false);
+
+                if ($timeout !== null) {
+                    $timeout -= (microtime(true) - $start);
+
+                    if ($timeout < 0) {
+                        throw new RpcTimeoutException('Queue timeout');
+                    }
+                }
+            }
+
+            $this->_callbackConsumer->acknowledge($responseMessage);
+
+            $success++;
+
+            $links[$correlationId]['response'] = $responseMessage;
+
+            $responseJob = $this->serializer->deserialize($responseMessage->getBody());
+
+            if (!($responseJob instanceof RpcResponseJob)) {
+                throw new ErrorException('Root object must be RpcResponseJob!');
+            }
+
+            if ($responseJob instanceof RpcFalseResponseJob) {
+                $result[$linked[$correlationId]['idx']] = false;
+                continue;
+            }
+
+            if ($responseJob instanceof RpcExceptionResponseJob) {
+                throw $responseJob->exception();
+            }
+
+            $result[$linked[$correlationId]['idx']] = $responseJob;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param AmqpMessage $message
      * @param RpcResponseJob $responseJob
      *
      * @return bool
      * @throws DeliveryDelayNotSupportedException
-     * @throws ErrorException
-     * @throws Exception
      * @throws Throwable
      */
     protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
@@ -934,12 +1054,18 @@ class Connection extends Component implements BootstrapInterface
 
         $this->prepareMessage($producer, $responseMessage, $responseJob);
 
-        $pair_id = $this->debugSendStart($queue, $responseMessage, 'reply', [
-            'reply_to' => $message->getMessageId(),
-        ]);
+        $pair_id = false;
 
         try {
-            $this->sendMessage($producer, $queue, $responseMessage, $responseJob);
+            $this->beforeSend($queue, $responseJob, $responseMessage);
+
+            $pair_id = $this->debugSendStart($queue, $responseMessage, 'reply', [
+                'reply_to' => $message->getMessageId(),
+            ]);
+
+            $producer->send($queue, $responseMessage);
+
+            $this->afterSend($queue, $responseJob, $responseMessage);
         }
         catch (Throwable $exception) {
             if ($pair_id) {
@@ -1335,35 +1461,13 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param AmqpProducer    $producer
-     *
+     * @param BaseJob|null $job
+     * @param AmqpMessage $message
      * @param AmqpDestination $target
-     * @param AmqpMessage     $message
-     *
-     * @param BaseJob|null    $job
-     *
-     * @throws Exception
-     * @throws Exception\InvalidDestinationException
-     * @throws Exception\InvalidMessageException
-     */
-    protected function sendMessage(AmqpProducer $producer, AmqpDestination $target, AmqpMessage $message, $job = null)
-    {
-        $this->beforeSend($target, $job, $message);
-
-        $producer->send($target, $message);
-
-        $this->afterSend($target, $job, $message);
-    }
-
-    /**
-     * @param BaseJob|null    $job
-     * @param AmqpMessage     $message
-     * @param AmqpDestination $target
-     * @param Throwable       $error
+     * @param Throwable $error
      *
      * @return bool
-     * @throws ErrorException
-     * @throws Exception
+     * @throws DeliveryDelayNotSupportedException
      * @throws Throwable
      */
     public function redelivery($job, AmqpMessage $message, AmqpDestination $target, $error)
@@ -1388,12 +1492,18 @@ class Connection extends Component implements BootstrapInterface
 
         $this->prepareMessage($producer, $newMessage, $job);
 
-        $pair_id = $this->debugSendStart($target, $newMessage, 'redelivery', [
-            'redelivery_to' => $message->getMessageId(),
-        ]);
+        $pair_id = false;
 
         try {
-            $this->sendMessage($producer, $target, $newMessage, $job);
+            $this->beforeSend($target, $job, $newMessage);
+
+            $pair_id = $this->debugSendStart($target, $newMessage, 'redelivery', [
+                'redelivery_to' => $message->getMessageId(),
+            ]);
+
+            $producer->send($target, $newMessage);
+
+            $this->afterSend($target, $job, $newMessage);
         }
         catch (Throwable $exception) {
             if ($pair_id) {
