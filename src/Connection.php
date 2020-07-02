@@ -26,6 +26,7 @@ use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\exceptions\RedeliveryException;
 use matrozov\yii2amqp\exceptions\RpcTimeoutException;
 use matrozov\yii2amqp\exceptions\RpcTransferableException;
+use matrozov\yii2amqp\jobs\AccessControlJob;
 use matrozov\yii2amqp\jobs\BaseJob;
 use matrozov\yii2amqp\jobs\DelayedJob;
 use matrozov\yii2amqp\jobs\ExpiredJob;
@@ -1096,6 +1097,10 @@ class Connection extends Component implements BootstrapInterface
 
         try {
             $this->beforeExecute($job, null, $message, $consumer);
+
+            if ($job instanceof AccessControlJob) {
+                AccessControl::allows($job);
+            }
 
             try {
                 $responseJob = $job->execute($this, $message);
