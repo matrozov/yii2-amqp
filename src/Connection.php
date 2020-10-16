@@ -926,18 +926,16 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param RpcRequestJob[] $jobs
-     * @return array
+     * @param $jobs
+     * @return RpcSendBatchAsync
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
      * @throws Exception
      * @throws Exception\InvalidDestinationException
      * @throws Exception\InvalidMessageException
      * @throws InvalidConfigException
-     * @throws RpcTimeoutException
-     * @throws HttpException
      */
-    public function sendBatch($jobs)
+    public function sendBatchAsync($jobs): RpcSendBatchAsync
     {
         $this->open();
 
@@ -979,59 +977,30 @@ class Connection extends Component implements BootstrapInterface
             $this->afterSend($exchange, $job, $message);
         }
 
-        $timeout = $this->rpcTimeout;
-        $start   = microtime(true);
+        return new RpcSendBatchAsync($this, $this->_callbackConsumer, $linked);
+    }
 
-        $success = 0;
+    /**
+     * @param RpcRequestJob[] $jobs
+     * @return array
+     * @throws DeliveryDelayNotSupportedException
+     * @throws ErrorException
+     * @throws Exception
+     * @throws Exception\InvalidDestinationException
+     * @throws Exception\InvalidMessageException
+     * @throws HttpException
+     * @throws InvalidConfigException
+     * @throws RpcTimeoutException
+     */
+    public function sendBatch($jobs)
+    {
+        $batch = $this->sendBatchAsync($jobs);
 
-        $result = [];
-
-        while ($success < count($linked)) {
-            $responseMessage = $this->_callbackConsumer->receive((int)$timeout * 1000 /* $timeout sec */);
-
-            if (!$responseMessage) {
-                throw new RpcTimeoutException('Queue timeout!');
-            }
-
-            $correlationId = $responseMessage->getCorrelationId();
-
-            if (!array_key_exists($correlationId, $linked)) {
-                $this->_callbackConsumer->reject($responseMessage, false);
-
-                if ($timeout !== null) {
-                    $timeout -= (microtime(true) - $start);
-
-                    if ($timeout < 0) {
-                        throw new RpcTimeoutException('Queue timeout');
-                    }
-                }
-            }
-
-            $this->_callbackConsumer->acknowledge($responseMessage);
-
-            $success++;
-
-            $links[$correlationId]['response'] = $responseMessage;
-
-            $responseJob = $this->serializer->deserialize($responseMessage->getBody());
-
-            if (!($responseJob instanceof RpcResponseJob)) {
-                throw new ErrorException('Root object must be RpcResponseJob!');
-            }
-
-            if ($responseJob instanceof RpcFalseResponseJob) {
-                $result[$linked[$correlationId]['idx']] = false;
-                continue;
-            }
-
-            if ($responseJob instanceof RpcExceptionResponseJob) {
-                throw $responseJob->exception();
-            }
-
-            $result[$linked[$correlationId]['idx']] = $responseJob;
+        while (!$batch->isReady()) {
+            sleep(1);
         }
 
-        return $result;
+        return $batch->result();
     }
 
     /**
