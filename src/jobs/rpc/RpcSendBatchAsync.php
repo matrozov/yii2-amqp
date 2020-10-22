@@ -62,7 +62,7 @@ class RpcSendBatchAsync
         }
 
         while ($this->_success < count($this->_linked)) {
-            $responseMessage = $this->_callbackConsumer->receive(($end - microtime(true)) * 1000);
+            $responseMessage = $this->_callbackConsumer->receive(round(($end - microtime(true)) * 1000));
 
             if (!$responseMessage) {
                 if (($this->_end !== null) && (microtime(true) > $this->_end)) {
