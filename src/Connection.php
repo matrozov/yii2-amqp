@@ -599,7 +599,7 @@ class Connection extends Component implements BootstrapInterface
 
         $this->setup();
 
-        $this->_callbackQueue = $this->_context->createQueue('callback.'.substr(md5(uniqid('', true)), 0, 8));
+        $this->_callbackQueue = $this->_context->createQueue(Yii::$app->id . '.callback.' . substr(md5(uniqid('', true)), 0, 8));
         $this->_callbackQueue->addFlag(AmqpQueue::FLAG_IFUNUSED);
         $this->_callbackQueue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
         $this->_callbackQueue->addFlag(AmqpQueue::FLAG_AUTODELETE);
