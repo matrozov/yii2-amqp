@@ -809,7 +809,7 @@ class Connection extends Component implements BootstrapInterface
                 }
 
                 if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
-                    $this->_callbackConsumer->reject($responseMessage, false);
+                    $this->_callbackConsumer->reject($responseMessage, true);
 
                     if ($timeout !== null) {
                         $timeout -= (microtime(true) - $start);

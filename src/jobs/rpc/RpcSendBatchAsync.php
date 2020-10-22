@@ -58,15 +58,18 @@ class RpcSendBatchAsync
             $correlationId = $responseMessage->getCorrelationId();
 
             if (!array_key_exists($correlationId, $this->_linked)) {
-                $this->_callbackConsumer->reject($responseMessage, false);
+                $this->_callbackConsumer->reject($responseMessage, true);
 
                 if ($this->_timeout !== null) {
                     $this->_timeout -= (microtime(true) - $this->_start);
+                    $this->_start    = microtime(true);
 
                     if ($this->_timeout < 0) {
                         throw new RpcTimeoutException('Queue timeout');
                     }
                 }
+
+                break;
             }
 
             $this->_callbackConsumer->acknowledge($responseMessage);
@@ -95,6 +98,7 @@ class RpcSendBatchAsync
 
         if ($this->_timeout !== null) {
             $this->_timeout -= (microtime(true) - $this->_start);
+            $this->_start    = microtime(true);
 
             if ($this->_timeout < 0) {
                 throw new RpcTimeoutException('Queue timeout');
