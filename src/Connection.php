@@ -809,7 +809,7 @@ class Connection extends Component implements BootstrapInterface
                 if ($end === null) {
                     $responseMessage = $this->_callbackConsumer->receive(0);
                 } else {
-                    $responseMessage = $this->_callbackConsumer->receive(round(($end - microtime(true)) * 1000));
+                    $responseMessage = $this->_callbackConsumer->receive((int)(($end - microtime(true)) * 1000));
                 }
 
                 if (!$responseMessage) {
