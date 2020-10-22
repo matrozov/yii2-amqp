@@ -39,6 +39,7 @@ use matrozov\yii2amqp\jobs\rpc\RpcExecuteJob;
 use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
 use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
 use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
+use matrozov\yii2amqp\jobs\rpc\RpcSendBatchAsync;
 use matrozov\yii2amqp\jobs\simple\ExecuteJob;
 use matrozov\yii2amqp\jobs\simple\RequestJob;
 use matrozov\yii2amqp\serializers\JsonSerializer;
@@ -926,7 +927,8 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param $jobs
+     * @param RpcRequestJob[] $jobs
+     * @param string[]        $exchangeNames
      * @return RpcSendBatchAsync
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
@@ -935,7 +937,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws Exception\InvalidMessageException
      * @throws InvalidConfigException
      */
-    public function sendBatchAsync($jobs): RpcSendBatchAsync
+    public function sendBatchAsync(array $jobs, array $exchangeNames = []): RpcSendBatchAsync
     {
         $this->open();
 
@@ -957,7 +959,13 @@ class Connection extends Component implements BootstrapInterface
 
             $this->prepareMessage($producer, $message, $job);
 
-            $exchange = $this->getExchange($job::exchangeName());
+            if (!empty($exchangeNames[$idx])) {
+                $exchangeName = $exchangeNames[$idx];
+            } else {
+                $exchangeName = $job::exchangeName();
+            }
+
+            $exchange = $this->getExchange($exchangeName);
 
             $this->beforeSend($exchange, $job, $message);
 
@@ -1113,8 +1121,6 @@ class Connection extends Component implements BootstrapInterface
      *
      * @return Throwable|null
      * @throws DeliveryDelayNotSupportedException
-     * @throws ErrorException
-     * @throws Exception
      * @throws Throwable
      */
     protected function handleRpcMessageException(Throwable $exception, RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
@@ -1197,9 +1203,8 @@ class Connection extends Component implements BootstrapInterface
      * @param AmqpConsumer $consumer
      *
      * @return Throwable|null
-     * @throws ErrorException
+     * @throws DeliveryDelayNotSupportedException
      * @throws Throwable
-     * @throws Exception
      */
     protected function handleSimpleMessageException(Throwable $exception, ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {

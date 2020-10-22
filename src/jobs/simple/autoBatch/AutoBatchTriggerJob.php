@@ -272,7 +272,6 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     protected static function triggerSet($atomic, string $key, int $ttl): bool
     {
         if ($atomic instanceof RedisConnection) {
-            /** @var RedisConnection $atomic */
             if ($atomic->setnx($key, 1)) {
                 $atomic->expire($key, $ttl * self::FAIL_DELAY_MULTIPLIER);
 
@@ -282,7 +281,6 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             return false;
         }
         elseif ($atomic instanceof Redis) {
-            /** @var Redis $atomic */
             if ($atomic->setnx($key, 1)) {
                 $atomic->expire($key, $ttl * self::FAIL_DELAY_MULTIPLIER);
 
@@ -292,11 +290,9 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
             return false;
         }
         elseif ($atomic instanceof Memcache) {
-            /** @var Memcache $atomic */
             return $atomic->add($key, 1, null, $ttl * self::FAIL_DELAY_MULTIPLIER);
         }
         elseif ($atomic instanceof Memcached) {
-            /** @var Memcached $atomic */
             return $atomic->add($key, 1, $ttl * self::FAIL_DELAY_MULTIPLIER);
         }
 
@@ -312,19 +308,15 @@ class AutoBatchTriggerJob implements RequestJob, ExecuteJob, DelayedJob
     protected static function triggerUnset($atomic, string $key)
     {
         if ($atomic instanceof RedisConnection) {
-            /** @var RedisConnection $atomic */
             $atomic->del($key);
         }
         elseif ($atomic instanceof Redis) {
-            /** @var Redis $atomic */
             $atomic->del($key);
         }
         elseif ($atomic instanceof Memcache) {
-            /** @var Memcache $atomic */
             $atomic->delete($key);
         }
         elseif ($atomic instanceof Memcached) {
-            /** @var Memcached $atomic */
             $atomic->delete($key);
         }
         else {

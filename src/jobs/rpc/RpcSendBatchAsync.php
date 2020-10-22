@@ -1,16 +1,11 @@
 <?php
 
-namespace matrozov\yii2amqp;
+namespace matrozov\yii2amqp\jobs\rpc;
 
 use Interop\Amqp\AmqpConsumer;
-use Interop\Amqp\AmqpQueue;
+use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\exceptions\RpcTimeoutException;
-use matrozov\yii2amqp\jobs\rpc\RpcExceptionResponseJob;
-use matrozov\yii2amqp\jobs\rpc\RpcFalseResponseJob;
-use matrozov\yii2amqp\jobs\rpc\RpcRequestJob;
-use matrozov\yii2amqp\jobs\rpc\RpcResponseJob;
 use yii\base\ErrorException;
-use yii\base\InvalidArgumentException;
 use yii\web\HttpException;
 
 /**
@@ -36,8 +31,9 @@ class RpcSendBatchAsync
 
     public function __construct($connection, $callbackConsumer, $linked)
     {
-        $this->_connection = $connection;
-        $this->_linked     = $linked;
+        $this->_connection       = $connection;
+        $this->_callbackConsumer = $callbackConsumer;
+        $this->_linked           = $linked;
 
         $this->_start   = microtime(true);
         $this->_timeout = $this->_connection->rpcTimeout;
@@ -109,7 +105,7 @@ class RpcSendBatchAsync
     }
 
     /**
-     * @return array
+     * @return false[]|RpcResponseJob[]
      * @throws ErrorException
      * @throws HttpException
      * @throws RpcTimeoutException
@@ -123,7 +119,7 @@ class RpcSendBatchAsync
         $result = [];
 
         foreach ($this->_linked as $idx => $link) {
-            $result[$idx] = $link['result'];
+            $result[$link['idx']] = $link['result'];
         }
 
         return $result;
