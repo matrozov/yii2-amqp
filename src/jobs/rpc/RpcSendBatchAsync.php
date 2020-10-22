@@ -23,9 +23,7 @@ class RpcSendBatchAsync
     protected $_linked;
 
     /** @var float */
-    protected $_start;
-    /** @var float */
-    protected $_timeout;
+    protected $_end;
     /** @var int */
     protected $_success;
 
@@ -35,24 +33,47 @@ class RpcSendBatchAsync
         $this->_callbackConsumer = $callbackConsumer;
         $this->_linked           = $linked;
 
-        $this->_start   = microtime(true);
-        $this->_timeout = $this->_connection->rpcTimeout;
+        if ($this->_connection->rpcTimeout === null) {
+            $this->_end = null;
+        } else {
+            $this->_end = microtime(true) + $this->_connection->rpcTimeout;
+        }
+
         $this->_success = 0;
     }
 
     /**
+     * @param int|null $timeout
      * @return bool
      * @throws ErrorException
-     * @throws RpcTimeoutException
      * @throws HttpException
+     * @throws RpcTimeoutException
      */
-    public function isReady()
+    public function isReady($timeout = null)
     {
+        if ($timeout === null) {
+            $end = $this->_end;
+        } else {
+            $end = microtime(true) + $timeout;
+
+            if ($this->_end !== null) {
+                $end = min($end, $this->_end);
+            }
+        }
+
         while ($this->_success < count($this->_linked)) {
-            $responseMessage = $this->_callbackConsumer->receiveNoWait();
+            $responseMessage = $this->_callbackConsumer->receive(($end - microtime(true)) * 1000);
 
             if (!$responseMessage) {
-                break;
+                if (($this->_end !== null) && (microtime(true) > $this->_end)) {
+                    throw new RpcTimeoutException('Queue timeout!');
+                }
+
+                if (($end !== null) && (microtime(true) > $end)) {
+                    break;
+                }
+
+                continue;
             }
 
             $correlationId = $responseMessage->getCorrelationId();
@@ -60,16 +81,15 @@ class RpcSendBatchAsync
             if (!array_key_exists($correlationId, $this->_linked)) {
                 $this->_callbackConsumer->reject($responseMessage, true);
 
-                if ($this->_timeout !== null) {
-                    $this->_timeout -= (microtime(true) - $this->_start);
-                    $this->_start    = microtime(true);
-
-                    if ($this->_timeout < 0) {
-                        throw new RpcTimeoutException('Queue timeout');
-                    }
+                if (($this->_end !== null) && (microtime(true) > $this->_end)) {
+                    throw new RpcTimeoutException('Queue timeout!');
                 }
 
-                break;
+                if (($end !== null) && (microtime(true) > $end)) {
+                    break;
+                }
+
+                continue;
             }
 
             $this->_callbackConsumer->acknowledge($responseMessage);
@@ -94,15 +114,6 @@ class RpcSendBatchAsync
             }
 
             $this->_linked[$correlationId]['result'] = $responseJob;
-        }
-
-        if ($this->_timeout !== null) {
-            $this->_timeout -= (microtime(true) - $this->_start);
-            $this->_start    = microtime(true);
-
-            if ($this->_timeout < 0) {
-                throw new RpcTimeoutException('Queue timeout');
-            }
         }
 
         return $this->_success == count($this->_linked);

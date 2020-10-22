@@ -799,10 +799,18 @@ class Connection extends Component implements BootstrapInterface
 
             $result = null;
 
-            while (true) {
-                $start = microtime(true);
+            if ($this->rpcTimeout === null) {
+                $end = null;
+            } else {
+                $end = microtime(true) + $this->rpcTimeout;
+            }
 
-                $responseMessage = $this->_callbackConsumer->receive((int)$timeout * 1000 /* $timeout sec */);
+            while (true) {
+                if ($end === null) {
+                    $responseMessage = $this->_callbackConsumer->receive(0);
+                } else {
+                    $responseMessage = $this->_callbackConsumer->receive(($end - microtime(true)) * 1000);
+                }
 
                 if (!$responseMessage) {
                     throw new RpcTimeoutException('Queue timeout!');
@@ -811,12 +819,8 @@ class Connection extends Component implements BootstrapInterface
                 if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
                     $this->_callbackConsumer->reject($responseMessage, true);
 
-                    if ($timeout !== null) {
-                        $timeout -= (microtime(true) - $start);
-
-                        if ($timeout < 0) {
-                            throw new RpcTimeoutException('Queue timeout!');
-                        }
+                    if (($end !== null) && (microtime(true) > $end)) {
+                        throw new RpcTimeoutException('Queue timeout!');
                     }
 
                     continue;
@@ -842,8 +846,7 @@ class Connection extends Component implements BootstrapInterface
                 $result = $responseJob;
                 break;
             }
-        }
-        catch (Throwable $exception) {
+        } catch (Throwable $exception) {
             if ($pair_id) {
                 $this->debugSendEnd($pair_id, $exception);
             }
