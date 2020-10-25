@@ -817,7 +817,13 @@ class Connection extends Component implements BootstrapInterface
                 }
 
                 if ($message->getCorrelationId() != $responseMessage->getCorrelationId()) {
-                    $this->_callbackConsumer->reject($responseMessage, true);
+                    $error = new NeedRedeliveryException('Invalid correlation ID');
+
+                    if ($this->redelivery(null, $responseMessage, $this->_callbackConsumer->getQueue(), $error)) {
+                        $this->_callbackConsumer->acknowledge($responseMessage);
+                    } else {
+                        throw new ErrorException('Can\'t redelivery invalid callback message');
+                    }
 
                     if (($end !== null) && (microtime(true) > $end)) {
                         throw new RpcTimeoutException('Queue timeout!');
@@ -1460,8 +1466,7 @@ class Connection extends Component implements BootstrapInterface
             if (!$job->canRetry($attempt, $error)) {
                 return false;
             }
-        }
-        else if ($attempt >= $this->maxAttempts) {
+        } elseif (!($error instanceof NeedRedeliveryException) && ($attempt >= $this->maxAttempts)) {
             return false;
         }
 

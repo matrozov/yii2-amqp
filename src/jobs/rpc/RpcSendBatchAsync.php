@@ -4,6 +4,7 @@ namespace matrozov\yii2amqp\jobs\rpc;
 
 use Interop\Amqp\AmqpConsumer;
 use matrozov\yii2amqp\Connection;
+use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\exceptions\RpcTimeoutException;
 use yii\base\ErrorException;
 use yii\web\HttpException;
@@ -79,7 +80,13 @@ class RpcSendBatchAsync
             $correlationId = $responseMessage->getCorrelationId();
 
             if (!array_key_exists($correlationId, $this->_linked)) {
-                $this->_callbackConsumer->reject($responseMessage, true);
+                $error = new NeedRedeliveryException('Invalid correlation ID');
+
+                if ($this->_connection->redelivery(null, $responseMessage, $this->_callbackConsumer->getQueue(), $error)) {
+                    $this->_callbackConsumer->acknowledge($responseMessage);
+                } else {
+                    throw new ErrorException('Can\'t redelivery invalid callback message');
+                }
 
                 if (($this->_end !== null) && (microtime(true) > $this->_end)) {
                     throw new RpcTimeoutException('Queue timeout!');
