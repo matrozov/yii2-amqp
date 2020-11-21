@@ -3,9 +3,11 @@
 namespace matrozov\yii2amqp\jobs\rpc;
 
 use Interop\Amqp\AmqpConsumer;
+use Interop\Queue\Exception\DeliveryDelayNotSupportedException;
 use matrozov\yii2amqp\Connection;
 use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\exceptions\RpcTimeoutException;
+use Throwable;
 use yii\base\ErrorException;
 use yii\web\HttpException;
 
@@ -28,16 +30,26 @@ class RpcSendBatchAsync
     /** @var int */
     protected $_success;
 
-    public function __construct($connection, $callbackConsumer, $linked)
+    /**
+     * RpcSendBatchAsync constructor.
+     *
+     * @param Connection     $connection
+     * @param AmqpConsumer   $callbackConsumer
+     * @param array          $linked
+     * @param int|null|false $rpcTimeout
+     */
+    public function __construct(Connection $connection, AmqpConsumer $callbackConsumer, array $linked, $rpcTimeout)
     {
         $this->_connection       = $connection;
         $this->_callbackConsumer = $callbackConsumer;
         $this->_linked           = $linked;
 
-        if ($this->_connection->rpcTimeout === null) {
+        $rpcTimeout = ($rpcTimeout !== false) ? $rpcTimeout : $this->_connection->rpcTimeout;
+
+        if ($rpcTimeout === null) {
             $this->_end = null;
         } else {
-            $this->_end = microtime(true) + $this->_connection->rpcTimeout;
+            $this->_end = microtime(true) + $rpcTimeout;
         }
 
         $this->_success = 0;
@@ -49,6 +61,8 @@ class RpcSendBatchAsync
      * @throws ErrorException
      * @throws HttpException
      * @throws RpcTimeoutException
+     * @throws DeliveryDelayNotSupportedException
+     * @throws Throwable
      */
     public function isReady($timeout = null)
     {
@@ -128,9 +142,11 @@ class RpcSendBatchAsync
 
     /**
      * @return false[]|RpcResponseJob[]
+     * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
      * @throws HttpException
      * @throws RpcTimeoutException
+     * @throws Throwable
      */
     public function result()
     {

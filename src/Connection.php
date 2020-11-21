@@ -938,6 +938,7 @@ class Connection extends Component implements BootstrapInterface
     /**
      * @param RpcRequestJob[] $jobs
      * @param string[]        $exchangeNames
+     * @param int|null|false  $rpcTimeout
      * @return RpcSendBatchAsync
      * @throws DeliveryDelayNotSupportedException
      * @throws ErrorException
@@ -946,7 +947,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws Exception\InvalidMessageException
      * @throws InvalidConfigException
      */
-    public function sendBatchAsync(array $jobs, array $exchangeNames = []): RpcSendBatchAsync
+    public function sendBatchAsync(array $jobs, array $exchangeNames = [], $rpcTimeout = false): RpcSendBatchAsync
     {
         $this->open();
 
@@ -994,7 +995,7 @@ class Connection extends Component implements BootstrapInterface
             $this->afterSend($exchange, $job, $message);
         }
 
-        return new RpcSendBatchAsync($this, $this->_callbackConsumer, $linked);
+        return new RpcSendBatchAsync($this, $this->_callbackConsumer, $linked, $rpcTimeout);
     }
 
     /**
@@ -1008,6 +1009,7 @@ class Connection extends Component implements BootstrapInterface
      * @throws HttpException
      * @throws InvalidConfigException
      * @throws RpcTimeoutException
+     * @throws Throwable
      */
     public function sendBatch($jobs)
     {
