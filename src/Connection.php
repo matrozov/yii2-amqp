@@ -795,8 +795,6 @@ class Connection extends Component implements BootstrapInterface
 
             $this->afterSend($target, $job, $message);
 
-            $timeout = $this->rpcTimeout;
-
             $result = null;
 
             if ($this->rpcTimeout === null) {
@@ -967,7 +965,7 @@ class Connection extends Component implements BootstrapInterface
             $message->setReplyTo($this->_callbackQueue->getQueueName());
             $message->setCorrelationId($correlationId);
 
-            $this->prepareMessage($producer, $message, $job);
+            $this->prepareMessage($producer, $message, $job, $rpcTimeout);
 
             if (!empty($exchangeNames[$idx])) {
                 $exchangeName = $exchangeNames[$idx];
@@ -1041,7 +1039,10 @@ class Connection extends Component implements BootstrapInterface
 
         $producer = $this->_context->createProducer();
 
-        $this->prepareMessage($producer, $responseMessage, $responseJob);
+        $rpcTimeout = $message->getExpiration();
+        $rpcTimeout = ($rpcTimeout !== null) ? ($rpcTimeout / 1000) : false;
+
+        $this->prepareMessage($producer, $responseMessage, $responseJob, $rpcTimeout);
 
         $pair_id = false;
 
@@ -1406,13 +1407,14 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param AmqpMessage  $message
-     * @param AmqpProducer $producer
-     * @param BaseJob|null $job
+     * @param AmqpMessage    $message
+     * @param AmqpProducer   $producer
+     * @param BaseJob|null   $job
+     * @param int|null|false $rpcTimeout
      *
      * @throws DeliveryDelayNotSupportedException
      */
-    protected function prepareMessage(AmqpProducer $producer, AmqpMessage $message, $job = null)
+    protected function prepareMessage(AmqpProducer $producer, AmqpMessage $message, $job = null, $rpcTimeout = false)
     {
         if ($message->getDeliveryMode() === null) {
             if ($job instanceof PersistentJob) {
@@ -1423,20 +1425,19 @@ class Connection extends Component implements BootstrapInterface
         if ($message->getPriority() === null) {
             if (($job instanceof PriorityJob) && (($priority = $job->getPriority()) !== null)) {
                 $message->setPriority($priority);
-            }
-            elseif ($this->priority !== null) {
+            } elseif ($this->priority !== null) {
                 $message->setPriority($this->priority);
             }
         }
 
         if ($message->getExpiration() === null) {
+            $rpcTimeout = ($rpcTimeout !== false) ? $rpcTimeout : $this->rpcTimeout;
+
             if (($job instanceof ExpiredJob) && (($ttl = $job->getTtl()) !== null)) {
                 $message->setExpiration($ttl * 1000);
-            }
-            elseif (($job instanceof RpcRequestJob) && ($this->rpcTimeout !== null)) {
-                $message->setExpiration($this->rpcTimeout * 1000);
-            }
-            elseif ($this->ttl !== null) {
+            } elseif (($job instanceof RpcRequestJob) && ($rpcTimeout !== null)) {
+                $message->setExpiration($rpcTimeout * 1000);
+            } elseif ($this->ttl !== null) {
                 $message->setExpiration($this->ttl * 1000);
             }
         }
