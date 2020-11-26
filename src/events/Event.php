@@ -10,7 +10,9 @@ use matrozov\yii2amqp\jobs\BaseJob;
  * @package matrozov\yii2amqp
  *
  * @property BaseJob|null $requestJob
- * @property AmqpMessage  $message
+ * @property AmqpMessage  $requestMessage
+ *
+ * @property AmqpMessage  $message // Backward compatibility
  */
 class Event extends \yii\base\Event
 {
@@ -22,5 +24,13 @@ class Event extends \yii\base\Event
     /**
      * @var AmqpMessage
      */
-    public $message;
+    public $requestMessage;
+
+    /**
+     * @return AmqpMessage
+     */
+    public function getMessage()
+    {
+        return $this->requestMessage;
+    }
 }

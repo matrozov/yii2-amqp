@@ -21,6 +21,7 @@ use Interop\Queue\Exception\DeliveryDelayNotSupportedException;
 use matrozov\yii2amqp\debugger\Debugger;
 use matrozov\yii2amqp\events\ExecuteEvent;
 use matrozov\yii2amqp\events\JobEvent;
+use matrozov\yii2amqp\events\ResponseEvent;
 use matrozov\yii2amqp\events\SendEvent;
 use matrozov\yii2amqp\exceptions\NeedRedeliveryException;
 use matrozov\yii2amqp\exceptions\RedeliveryException;
@@ -123,10 +124,12 @@ class Connection extends Component implements BootstrapInterface
     const ENQUEUE_AMQP_EXT   = 'enqueue/amqp-ext';
     const ENQUEUE_AMQP_BUNNY = 'enqueue/amqp-bunny';
 
-    const EVENT_BEFORE_SEND    = 'beforeSend';
-    const EVENT_AFTER_SEND     = 'afterSend';
-    const EVENT_BEFORE_EXECUTE = 'beforeExecute';
-    const EVENT_AFTER_EXECUTE  = 'afterExecute';
+    const EVENT_BEFORE_SEND     = 'beforeSend';
+    const EVENT_AFTER_SEND      = 'afterSend';
+    const EVENT_BEFORE_EXECUTE  = 'beforeExecute';
+    const EVENT_AFTER_EXECUTE   = 'afterExecute';
+    const EVENT_BEFORE_RESPONSE = 'beforeResponse';
+    const EVENT_AFTER_RESPONSE  = 'afterResponse';
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -1024,11 +1027,11 @@ class Connection extends Component implements BootstrapInterface
      * @param AmqpMessage $message
      * @param RpcResponseJob $responseJob
      *
-     * @return bool
+     * @return AmqpMessage
      * @throws DeliveryDelayNotSupportedException
      * @throws Throwable
      */
-    protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob)
+    protected function replyRpcMessage(AmqpMessage $message, RpcResponseJob $responseJob): AmqpMessage
     {
         $queueName = $message->getReplyTo();
 
@@ -1069,7 +1072,7 @@ class Connection extends Component implements BootstrapInterface
             $this->debugSendEnd($pair_id);
         }
 
-        return true;
+        return $responseMessage;
     }
 
     /**
@@ -1081,47 +1084,43 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleRpcMessage(RpcExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $exceptionInt = null;
-        $exceptionExt = null;
+        $responseMessage = null;
+        $throw           = null;
 
         try {
-            $this->beforeExecute($job, null, $message, $consumer);
+            $this->beforeExecute($job, $message, $consumer);
 
             if ($job instanceof AccessControlJob) {
                 AccessControl::allows($job);
             }
 
-            try {
-                $responseJob = $job->execute($this, $message);
+            $responseJob = $job->execute($this, $message);
 
-                if (!($responseJob instanceof RpcResponseJob)) {
-                    throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
-                }
-
-                if (!$responseJob) {
-                    $responseJob = new RpcFalseResponseJob();
-                }
-
-                $this->replyRpcMessage($message, $responseJob);
-            }
-            catch (Throwable $exception) {
-                $responseJob = null;
-
-                $exceptionInt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
+            if (!($responseJob instanceof RpcResponseJob)) {
+                throw new ErrorException('You must return response RpcResponseJob for RpcRequestJob!');
             }
 
-            $this->afterExecute($job, $responseJob, $message, $consumer);
-        }
-        catch (Throwable $exception) {
-            if (!$exceptionInt) {
-                $exceptionExt = $this->handleRpcMessageException($exception, $job, $message, $consumer);
+            if (!$responseJob) {
+                $responseJob = new RpcFalseResponseJob();
+            }
+
+            $this->beforeResponse($job, $message, $responseJob, $consumer);
+            $responseMessage = $this->replyRpcMessage($message, $responseJob);
+            $this->afterResponse($job, $message, $responseJob, $responseMessage, $consumer);
+
+            $this->afterExecute($job, $message, $responseJob, $responseMessage, $consumer);
+        } catch (Throwable $exception) {
+            if (!$responseMessage) {
+                $throw = $this->handleRpcMessageException($exception, $job, $message, $consumer);
+            } else {
+                $throw = $exception;
             }
         }
 
         $consumer->acknowledge($message);
 
-        if ($exceptionInt || $exceptionExt) {
-            throw $exceptionInt ? $exceptionInt : $exceptionExt;
+        if ($throw) {
+            throw $throw;
         }
     }
 
@@ -1180,31 +1179,22 @@ class Connection extends Component implements BootstrapInterface
      */
     protected function handleSimpleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $exceptionInt = null;
-        $exceptionExt = null;
+        $throw = null;
 
         try {
-            $this->beforeExecute($job, null, $message, $consumer);
+            $this->beforeExecute($job, $message, $consumer);
 
-            try {
-                $job->execute($this, $message);
-            }
-            catch (Throwable $exception) {
-                $exceptionInt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
-            }
+            $job->execute($this, $message);
 
-            $this->afterExecute($job, null, $message, $consumer);
-        }
-        catch (Throwable $exception) {
-            if (!$exceptionInt) {
-                $exceptionExt = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
-            }
+            $this->afterExecute($job, $message, null, null, $consumer);
+        } catch (Throwable $exception) {
+            $throw = $this->handleSimpleMessageException($exception, $job, $message, $consumer);
         }
 
         $consumer->acknowledge($message);
 
-        if ($exceptionInt || $exceptionExt) {
-            throw $exceptionInt ? $exceptionInt : $exceptionExt;
+        if ($throw) {
+            throw $throw;
         }
     }
 
@@ -1452,16 +1442,16 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param BaseJob|null $job
-     * @param AmqpMessage $message
+     * @param BaseJob|null    $job
+     * @param AmqpMessage     $message
      * @param AmqpDestination $target
-     * @param Throwable $error
+     * @param Throwable       $error
      *
      * @return bool
      * @throws DeliveryDelayNotSupportedException
      * @throws Throwable
      */
-    public function redelivery($job, AmqpMessage $message, AmqpDestination $target, $error)
+    public function redelivery($job, AmqpMessage $message, AmqpDestination $target, Throwable $error)
     {
         $attempt = $message->getProperty(self::PROPERTY_ATTEMPT, 1);
 
@@ -1512,67 +1502,65 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param AmqpDestination $target
-     * @param BaseJob|null    $job
-     * @param AmqpMessage     $message
+     * @param BaseJob|null    $requestJob
+     * @param AmqpMessage     $requestMessage
      */
-    public function beforeSend(AmqpDestination $target, $job, AmqpMessage $message)
+    public function beforeSend(AmqpDestination $target, ?BaseJob $requestJob, AmqpMessage $requestMessage)
     {
         $event = new SendEvent([
             'target'     => $target,
-            'requestJob' => $job,
-            'message'    => $message,
+            'requestJob' => $requestJob,
+            'message'    => $requestMessage,
         ]);
 
         $this->trigger(static::EVENT_BEFORE_SEND, $event);
 
-        if ($job instanceof Component) {
+        if ($requestJob instanceof Component) {
             $event = new JobEvent([
-                'job' => $job,
+                'job' => $requestJob,
             ]);
 
-            /* @var Component $job */
-            $job->trigger(static::EVENT_BEFORE_SEND, $event);
+            /* @var Component $requestJob */
+            $requestJob->trigger(static::EVENT_BEFORE_SEND, $event);
         }
     }
 
     /**
      * @param AmqpDestination $target
-     * @param BaseJob|null    $job
-     * @param AmqpMessage     $message
+     * @param BaseJob|null    $requestJob
+     * @param AmqpMessage     $requestMessage
      */
-    public function afterSend(AmqpDestination $target, $job, AmqpMessage $message)
+    public function afterSend(AmqpDestination $target, ?BaseJob $requestJob, AmqpMessage $requestMessage)
     {
         $event = new SendEvent([
-            'target'     => $target,
-            'requestJob' => $job,
-            'message'    => $message,
+            'target'         => $target,
+            'requestJob'     => $requestJob,
+            'requestMessage' => $requestMessage,
         ]);
 
         $this->trigger(static::EVENT_AFTER_SEND, $event);
 
-        if ($job instanceof Component) {
+        if ($requestJob instanceof Component) {
             $event = new JobEvent([
-                'job' => $job,
+                'job' => $requestJob,
             ]);
 
-            /* @var Component $job */
-            $job->trigger(static::EVENT_AFTER_SEND, $event);
+            /* @var Component $requestJob */
+            $requestJob->trigger(static::EVENT_AFTER_SEND, $event);
         }
     }
 
     /**
-     * @param ExecuteJob          $requestJob
-     * @param RpcResponseJob|null $responseJob
-     * @param AmqpMessage         $message
-     * @param AmqpConsumer        $consumer
+     * @param ExecuteJob   $requestJob
+     * @param AmqpMessage  $requestMessage
+     * @param AmqpConsumer $consumer
      */
-    public function beforeExecute(ExecuteJob $requestJob, $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
+    public function beforeExecute(ExecuteJob $requestJob, AmqpMessage $requestMessage, AmqpConsumer $consumer)
     {
         $event = new ExecuteEvent([
-            'requestJob'  => $requestJob,
-            'responseJob' => $responseJob,
-            'message'     => $message,
-            'consumer'    => $consumer,
+            'requestJob'      => $requestJob,
+            'requestMessage'  => $requestMessage,
+            'consumer'        => $consumer,
         ]);
 
         $this->trigger(static::EVENT_BEFORE_EXECUTE, $event);
@@ -1589,17 +1577,19 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param ExecuteJob          $requestJob
+     * @param AmqpMessage         $requestMessage
      * @param RpcResponseJob|null $responseJob
-     * @param AmqpMessage         $message
+     * @param AmqpMessage|null    $responseMessage
      * @param AmqpConsumer        $consumer
      */
-    public function afterExecute(ExecuteJob $requestJob, $responseJob, AmqpMessage $message, AmqpConsumer $consumer)
+    public function afterExecute(ExecuteJob $requestJob, AmqpMessage $requestMessage, ?RpcResponseJob $responseJob, ?AmqpMessage $responseMessage, AmqpConsumer $consumer)
     {
         $event = new ExecuteEvent([
-            'requestJob'  => $requestJob,
-            'responseJob' => $responseJob,
-            'message'     => $message,
-            'consumer'    => $consumer,
+            'requestJob'      => $requestJob,
+            'requestMessage'  => $requestMessage,
+            'responseJob'     => $responseJob,
+            'responseMessage' => $responseMessage,
+            'consumer'        => $consumer,
         ]);
 
         $this->trigger(static::EVENT_AFTER_EXECUTE, $event);
@@ -1615,6 +1605,61 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @param ExecuteJob     $requestJob
+     * @param AmqpMessage    $requestMessage
+     * @param RpcResponseJob $responseJob
+     * @param AmqpConsumer   $consumer
+     */
+    public function beforeResponse(ExecuteJob $requestJob, AmqpMessage $requestMessage, RpcResponseJob $responseJob, AmqpConsumer $consumer)
+    {
+        $event = new ResponseEvent([
+            'requestJob'      => $requestJob,
+            'requestMessage'  => $requestMessage,
+            'consumer'        => $consumer,
+        ]);
+
+        $this->trigger(static::EVENT_BEFORE_RESPONSE, $event);
+
+        if ($requestJob instanceof Component) {
+            $event = new JobEvent([
+                'job' => $requestJob,
+            ]);
+
+            /* @var Component $requestJob */
+            $requestJob->trigger(static::EVENT_BEFORE_RESPONSE, $event);
+        }
+    }
+
+    /**
+     * @param ExecuteJob          $requestJob
+     * @param AmqpMessage         $requestMessage
+     * @param RpcResponseJob|null $responseJob
+     * @param AmqpMessage|null    $responseMessage
+     * @param AmqpConsumer        $consumer
+     */
+    public function afterResponse(ExecuteJob $requestJob, AmqpMessage $requestMessage, RpcResponseJob $responseJob, AmqpMessage $responseMessage, AmqpConsumer $consumer)
+    {
+        $event = new ResponseEvent([
+            'requestJob'      => $requestJob,
+            'requestMessage'  => $requestMessage,
+            'responseJob'     => $responseJob,
+            'responseMessage' => $responseMessage,
+            'consumer'        => $consumer,
+        ]);
+
+        $this->trigger(static::EVENT_AFTER_RESPONSE, $event);
+
+        if ($requestJob instanceof Component) {
+            $event = new JobEvent([
+                'job' => $requestJob,
+            ]);
+
+            /* @var Component $requestJob */
+            $requestJob->trigger(static::EVENT_AFTER_RESPONSE, $event);
+        }
+    }
+
+    /**
      * @param AmqpConsumer $consumer
      * @param AmqpMessage  $message
      *
@@ -1626,7 +1671,7 @@ class Connection extends Component implements BootstrapInterface
             return false;
         }
 
-        $this->_debug_request_id = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID);
+        $this->_debug_request_id        = $message->getProperty(self::PROPERTY_DEBUG_REQUEST_ID);
         $this->_debug_parent_message_id = $message->getMessageId();
 
         $pair_id = uniqid('', true);
