@@ -1508,9 +1508,9 @@ class Connection extends Component implements BootstrapInterface
     public function beforeSend(AmqpDestination $target, ?BaseJob $requestJob, AmqpMessage $requestMessage)
     {
         $event = new SendEvent([
-            'target'     => $target,
-            'requestJob' => $requestJob,
-            'message'    => $requestMessage,
+            'target'         => $target,
+            'requestJob'     => $requestJob,
+            'requestMessage' => $requestMessage,
         ]);
 
         $this->trigger(static::EVENT_BEFORE_SEND, $event);
