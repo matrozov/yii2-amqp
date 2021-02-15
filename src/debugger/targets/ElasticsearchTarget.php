@@ -3,18 +3,18 @@
 namespace matrozov\yii2amqp\debugger\targets;
 
 use matrozov\yii2amqp\debugger\Target;
-use stdClass;
 use yii\base\ErrorException;
 use yii\base\InvalidConfigException;
+use yii\di\Instance;
 use yii\elasticsearch\Connection;
-use yii\helpers\ArrayHelper;
+use yii\elasticsearch\Exception;
 use yii\helpers\Json;
 
 /**
  * Class ElasticsearchTarget
  * @package matrozov\yii2amqp\debugger\targets
  *
- * @property string $url
+ * @property Connection|array|string $db
  * @property string $index
  */
 class ElasticsearchTarget extends Target
@@ -23,7 +23,7 @@ class ElasticsearchTarget extends Target
 
     const JSON_PARAMS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
-    public $url   = '';
+    public $db    = 'elasticsearch';
     public $index = 'yii';
 
     /** @var resource */
@@ -49,9 +49,7 @@ class ElasticsearchTarget extends Target
     {
         parent::init();
 
-        if (empty($this->url)) {
-            throw new InvalidConfigException('Url must be specified!');
-        }
+        $this->db = Instance::ensure($this->db, Connection::class);
 
         $this->_curl = curl_multi_init();
 
@@ -96,11 +94,11 @@ class ElasticsearchTarget extends Target
     }
 
     /**
-     * @param string $url
      * @param string $body
      * @throws ErrorException
+     * @throws Exception
      */
-    protected function add(string $url, string $body)
+    protected function add(string $body)
     {
         if (empty($this->_free)) {
             if (!$this->wait(30)) {
@@ -108,14 +106,62 @@ class ElasticsearchTarget extends Target
             }
         }
 
+        $this->db->open();
+
+        $node     = $this->db->nodes[$this->db->activeNode];
+        $protocol = isset($node['protocol']) ? $node['protocol'] : $this->db->defaultProtocol;
+        $host     = $node['host_address'];
+
+        if (strncmp($host, 'inet[', 5) == 0) {
+            $host = substr($host, 5, -1);
+
+            if (($pos = strpos($host, '/')) !== false) {
+                $host = substr($host, $pos + 1);
+            }
+        }
+
+        $url = $protocol . '://' . $host . '/_bulk';
+
         $curl = array_pop($this->_free);
 
         curl_setopt_array($curl, [
-            CURLOPT_URL        => $url,
-            CURLOPT_POST       => true,
-            CURLOPT_POSTFIELDS => $body,
-            CURLOPT_HEADER     => false,
+            CURLOPT_URL            => $url,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HEADER         => false,
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_FORBID_REUSE   => false,
+            CURLOPT_NOBODY         => false,
+            CURLOPT_HTTPHEADER     => [
+                'Expect:',
+                'Content-Type: application/json',
+            ],
         ]);
+
+        if (!empty($this->db->auth) || isset($node['auth']) && $node['auth'] !== false) {
+            $auth = isset($node['auth']) ? $node['auth'] : $this->db->auth;
+
+            if (empty($auth['username'])) {
+                throw new InvalidConfigException('Username is required to use authentication');
+            }
+
+            if (empty($auth['password'])) {
+                throw new InvalidConfigException('Password is required to use authentication');
+            }
+
+            curl_setopt_array($curl, [
+                CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+                CURLOPT_USERPWD  => $auth['username'] . ':' . $auth['password'],
+            ]);
+        }
+
+        if ($this->db->connectionTimeout !== null) {
+            curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, $this->db->connectionTimeout);
+        }
+
+        if ($this->db->dataTimeout !== null) {
+            curl_setopt($curl, CURLOPT_TIMEOUT, $this->db->dataTimeout);
+        }
 
         curl_multi_add_handle($this->_curl, $curl);
     }
@@ -142,7 +188,7 @@ class ElasticsearchTarget extends Target
             'data'       => $data,
         ], self::JSON_PARAMS) . PHP_EOL;
 
-        $this->add($this->url . '/' . $this->index . '/_bulk', $body);
+        $this->add($body);
     }
 
     /**
@@ -167,7 +213,7 @@ class ElasticsearchTarget extends Target
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
 
-        $this->add($this->url . '/' . $this->index . '/_bulk', $body);
+        $this->add($body);
     }
 
     /**
@@ -190,7 +236,7 @@ class ElasticsearchTarget extends Target
             'data'       => $data,
         ], self::JSON_PARAMS) . PHP_EOL;
 
-        $this->add($this->url . '/' . $this->index . '/_bulk', $body);
+        $this->add($body);
     }
 
     /**
@@ -198,16 +244,7 @@ class ElasticsearchTarget extends Target
      */
     public function flush()
     {
-        if (empty($this->_logs)) {
-            return;
-        }
 
-        $logs = array_map([$this, 'prepareLog'], $this->_logs);
-        $content = implode(PHP_EOL, $logs).PHP_EOL;
-
-        $this->db->post([$this->index, $this->type, '_bulk'], $this->dbOptions, $content);
-
-        $this->_logs = [];
     }
 
     /**
