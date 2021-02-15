@@ -113,7 +113,7 @@ class ElasticsearchTarget extends Target
 
         $node     = $this->db->nodes[$this->db->activeNode];
         $protocol = isset($node['protocol']) ? $node['protocol'] : $this->db->defaultProtocol;
-        $host     = $node['host_address'];
+        $host     = $node['http_address'];
 
         if (strncmp($host, 'inet[', 5) == 0) {
             $host = substr($host, 5, -1);
