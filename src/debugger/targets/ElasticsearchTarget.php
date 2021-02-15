@@ -97,6 +97,7 @@ class ElasticsearchTarget extends Target
      * @param string $body
      * @throws ErrorException
      * @throws Exception
+     * @throws InvalidConfigException
      */
     protected function add(string $body)
     {
@@ -139,7 +140,7 @@ class ElasticsearchTarget extends Target
         ]);
 
         if (!empty($this->db->auth) || isset($node['auth']) && $node['auth'] !== false) {
-            $auth = isset($node['auth']) ? $node['auth'] : $this->db->auth;
+            $auth = $node['auth'] ?: $this->db->auth;
 
             if (empty($auth['username'])) {
                 throw new InvalidConfigException('Username is required to use authentication');
@@ -169,6 +170,8 @@ class ElasticsearchTarget extends Target
     /**
      * @inheritDoc
      * @throws ErrorException
+     * @throws Exception
+     * @throws InvalidConfigException
      */
     public function logStart(string $type, string $id, array $data): void
     {
@@ -194,6 +197,8 @@ class ElasticsearchTarget extends Target
     /**
      * @inheritDoc
      * @throws ErrorException
+     * @throws Exception
+     * @throws InvalidConfigException
      */
     public function logEnd(string $id, array $data): void
     {
@@ -219,6 +224,8 @@ class ElasticsearchTarget extends Target
     /**
      * @inheritDoc
      * @throws ErrorException
+     * @throws Exception
+     * @throws InvalidConfigException
      */
     public function log(string $type, array $data): void
     {
