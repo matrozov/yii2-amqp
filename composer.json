@@ -38,8 +38,8 @@
         "ext-mbstring": "Need for debugging.",
         "ext-pcntl": "Need for process signals.",
         "enqueue/amqp-lib": "Need for amqp over enqueue amqp-lib.",
-        "enqueue/amqp-bunny": "Need for amqp over enqueue amqp-bunny.",
-        "enqueue/amqp-ext": "Need for amqp over enqueue amqp-ext."
+        "enqueue/amqp-ext": "Need for amqp over enqueue amqp-ext.",
+        "enqueue/amqp-bunny": "Need for amqp over enqueue amqp-bunny."
     },
     "repositories": [
         {

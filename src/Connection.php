@@ -130,7 +130,6 @@ class Connection extends Component implements BootstrapInterface
     const EVENT_AFTER_EXECUTE   = 'afterExecute';
     const EVENT_BEFORE_RESPONSE = 'beforeResponse';
     const EVENT_AFTER_RESPONSE  = 'afterResponse';
-    const EVENT_LISTEN_LOOP     = 'listenLoop';
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -1315,7 +1314,7 @@ class Connection extends Component implements BootstrapInterface
      *
      * @throws
      */
-    public function listen($queueNames = null, $timeout = null)
+    public function listen($queueNames = null, $timeout = 0)
     {
         $this->open();
 
@@ -1326,8 +1325,6 @@ class Connection extends Component implements BootstrapInterface
                 $this->getQueue($queueName);
             }
         }
-
-        $lastActive = time();
 
         $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
             $pair_id = $this->debugExecuteStart($consumer, $message);
@@ -1360,47 +1357,7 @@ class Connection extends Component implements BootstrapInterface
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
 
-        while (true) {
-            $start = microtime(true);
-
-            $loopTimeout = max(5, (int)$timeout);
-
-            $subscriptionConsumer->consume($loopTimeout * 1000);
-
-            if (time() - $lastActive > 60) {
-                $pingMessage = $this->_context->createMessage();
-
-                $this->_callbackProducer->send($this->_callbackQueue, $pingMessage);
-
-                $responsePingMessage = $this->_callbackConsumer->receive(60 * 1000 /* 60 sec */);
-
-                if (!$responsePingMessage) {
-                    throw new RpcTimeoutException('Ping-Pong not reached!');
-                }
-
-                $this->_callbackConsumer->acknowledge($responsePingMessage);
-
-                $lastActive = time();
-            }
-
-            if ($timeout !== null) {
-                $timeout -= microtime(true) - $start;
-            }
-
-            if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
-                break;
-            }
-
-            $this->trigger(self::EVENT_LISTEN_LOOP);
-        }
-
-        $subscriptionConsumer->unsubscribeAll();
-
-        $this->close();
-
-        if ($this->debugger) {
-            $this->debugger->shutdown();
-        }
+        $subscriptionConsumer->consume($timeout);
     }
 
     /**
