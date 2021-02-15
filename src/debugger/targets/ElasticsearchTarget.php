@@ -24,8 +24,9 @@ class ElasticsearchTarget extends Target
 
     const JSON_PARAMS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
-    public $db    = 'elasticsearch';
-    public $index = 'yii';
+    public $db          = 'elasticsearch';
+    public $index       = 'yii';
+    public $extraFields = [];
 
     /** @var resource */
     protected $_curl;
@@ -170,21 +171,16 @@ class ElasticsearchTarget extends Target
 
     /**
      * @param array $data
-     * @return array
      */
     protected function prepareExtraFields(array &$data)
     {
-        $result = [];
-
         foreach ($this->extraFields as $name => $value) {
             if (is_callable($value)) {
-                $result[$name] = call_user_func($value, $result);
+                $data[$name] = call_user_func($value, $data);
             } else {
-                $result[$name] = $value;
+                $data[$name] = $value;
             }
         }
-
-        return $result;
     }
 
     /**
