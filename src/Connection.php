@@ -130,6 +130,7 @@ class Connection extends Component implements BootstrapInterface
     const EVENT_AFTER_EXECUTE   = 'afterExecute';
     const EVENT_BEFORE_RESPONSE = 'beforeResponse';
     const EVENT_AFTER_RESPONSE  = 'afterResponse';
+    const EVENT_LISTEN_LOOP     = 'listenLoop';
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -461,11 +462,15 @@ class Connection extends Component implements BootstrapInterface
         Yii::$app->on(Application::EVENT_AFTER_REQUEST, function () {
             $this->close();
 
-            $this->debugFlush();
+            if ($this->debugger) {
+                $this->debugger->shutdown();
+            }
         });
 
         $this->on(static::EVENT_AFTER_EXECUTE, function () {
-            $this->debugFlush();
+            if ($this->debugger) {
+                $this->debugger->flush();
+            }
         });
 
         self::$_instance = $this;
@@ -477,7 +482,7 @@ class Connection extends Component implements BootstrapInterface
      * @return Connection
      * @throws
      */
-    public static function instance(Connection $connection = null)
+    public static function instance(Connection $connection = null): Connection
     {
         if ($connection == null) {
             if (self::$_instance == null) {
@@ -498,7 +503,7 @@ class Connection extends Component implements BootstrapInterface
      * @return string command id
      * @throws
      */
-    protected function getCommandId()
+    protected function getCommandId(): string
     {
         foreach (Yii::$app->getComponents(false) as $id => $component) {
             if ($component === $this) {
@@ -1316,8 +1321,7 @@ class Connection extends Component implements BootstrapInterface
 
         if (empty($queueNames)) {
             $queueNames = array_keys($this->_queues);
-        }
-        else {
+        } else {
             foreach ((array)$queueNames as $queueName) {
                 $this->getQueue($queueName);
             }
@@ -1330,8 +1334,7 @@ class Connection extends Component implements BootstrapInterface
 
             try {
                 $this->handleMessage($message, $consumer);
-            }
-            catch (Throwable $exception) {
+            } catch (Throwable $exception) {
                 if ($pair_id) {
                     $this->debugExecuteEnd($pair_id, $exception);
                 }
@@ -1387,13 +1390,17 @@ class Connection extends Component implements BootstrapInterface
             if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
                 break;
             }
+
+            $this->trigger(self::EVENT_LISTEN_LOOP);
         }
 
         $subscriptionConsumer->unsubscribeAll();
 
         $this->close();
 
-        $this->debugFlush();
+        if ($this->debugger) {
+            $this->debugger->shutdown();
+        }
     }
 
     /**
@@ -1678,14 +1685,13 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'     => Yii::$app->id,
-            'time'       => microtime(true),
+            'time_start' => microtime(true),
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
-            'pair_id'    => $pair_id,
             'queue'      => $consumer->getQueue()->getQueueName(),
         ];
 
-        $this->debug('execute_start', $debug);
+        $this->debugger->logStart('execute', $pair_id, $debug);
 
         return $pair_id;
     }
@@ -1701,10 +1707,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'app_id'     => Yii::$app->id,
-            'time'       => microtime(true),
-            'request_id' => $this->_debug_request_id,
-            'pair_id'    => $pair_id,
+            'time_end' => microtime(true),
         ];
 
         if ($exception) {
@@ -1717,7 +1720,7 @@ class Connection extends Component implements BootstrapInterface
             ];
         }
 
-        $this->debug('execute_end', $debug);
+        $this->debugger->logEnd($pair_id, $debug);
 
         $this->_debug_parent_message_id = '';
     }
@@ -1753,12 +1756,11 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'         => Yii::$app->id,
-            'time'           => microtime(true),
+            'time_start'     => microtime(true),
             'request_id'     => $this->_debug_request_id,
             'request_action' => empty($this->_debug_parent_message_id) ? $this->_debug_request_action : '',
             'parent_id'      => $this->_debug_parent_message_id,
             'message_id'     => $message->getMessageId(),
-            'pair_id'        => $pair_id,
             'sub_type'       => $sub_type,
             'target_type'    => $target_type,
             'target'         => $target,
@@ -1771,7 +1773,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = ArrayHelper::merge($debug, $fields);
 
-        $this->debug('send_start', $debug);
+        $this->debugger->logStart('send', $pair_id, $debug);
 
         return $pair_id;
     }
@@ -1789,10 +1791,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'app_id'     => Yii::$app->id,
-            'time'       => microtime(true),
-            'request_id' => $this->_debug_request_id,
-            'pair_id'    => $pair_id,
+            'time_end' => microtime(true),
         ];
 
         if ($exception) {
@@ -1807,20 +1806,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = ArrayHelper::merge($debug, $fields);
 
-        $this->debug('send_end', $debug);
-    }
-
-    /**
-     * @param string $type
-     * @param mixed  $content
-     */
-    protected function debug($type, $content)
-    {
-        if (!$this->debugger) {
-            return;
-        }
-
-        $this->debugger->log($type, $content);
+        $this->debugger->logEnd($pair_id, $debug);
     }
 
     public function debugFlush()

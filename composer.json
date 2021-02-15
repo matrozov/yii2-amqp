@@ -20,18 +20,20 @@
         "yiisoft/yii2": "~2.0.14"
     },
     "require-dev": {
+        "ext-curl": "*",
         "ext-json": "*",
         "ext-mbstring": "*",
         "ext-pcntl": "*",
         "ext-redis": "*",
         "ext-memcache": "*",
-        "enqueue/amqp-lib": "^0.9",
-        "enqueue/amqp-ext": "^0.9",
-        "enqueue/amqp-bunny": "^0.9",
+        "enqueue/amqp-lib": "^0.10",
+        "enqueue/amqp-ext": "^0.10",
+        "enqueue/amqp-bunny": "^0.10",
 		"yiisoft/yii2-elasticsearch": "2.1.x-dev",
         "yiisoft/yii2-redis": "~2.0.0"
     },
     "suggest": {
+        "ext-curl": "Need for elasticsearch debug logging.",
         "ext-json": "Need for json encode transfer and logging.",
         "ext-mbstring": "Need for debugging.",
         "ext-pcntl": "Need for process signals.",
@@ -39,6 +41,12 @@
         "enqueue/amqp-bunny": "Need for amqp over enqueue amqp-bunny.",
         "enqueue/amqp-ext": "Need for amqp over enqueue amqp-ext."
     },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "matrozov\\yii2amqp\\": "src"

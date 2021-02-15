@@ -4,87 +4,197 @@ namespace matrozov\yii2amqp\debugger\targets;
 
 use matrozov\yii2amqp\debugger\Target;
 use stdClass;
+use yii\base\ErrorException;
 use yii\base\InvalidConfigException;
-use yii\di\Instance;
 use yii\elasticsearch\Connection;
+use yii\helpers\ArrayHelper;
 use yii\helpers\Json;
 
 /**
  * Class ElasticsearchTarget
  * @package matrozov\yii2amqp\debugger\targets
  *
- * @property string                  $index
- * @property string                  $type
- * @property Connection|array|string $db
- * @property array                   $dbOptions
- * @property array                   $extraFields
+ * @property string $url
+ * @property string $index
  */
 class ElasticsearchTarget extends Target
 {
-    public $index       = 'yii';
-    public $type        = 'log';
-    public $db          = 'elasticsearch';
-    public $dbOptions   = [];
-    public $extraFields = [];
+    const CONNECTION_COUNT = 10;
 
-    protected $_logs = [];
+    const JSON_PARAMS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
+
+    public $url   = '';
+    public $index = 'yii';
+
+    /** @var resource */
+    protected $_curl;
+    /** @var resource[] */
+    protected $_free = [];
+    /** @var resource[] */
+    protected $_used = [];
 
     /**
-     * {@inheritdoc}
+     * @throws ErrorException
+     */
+    public function __destruct()
+    {
+        $this->shutdown();
+    }
+
+    /**
+     * @inheritDoc
      * @throws InvalidConfigException
      */
     public function init()
     {
         parent::init();
 
-        $this->db = Instance::ensure($this->db, Connection::class);
+        if (empty($this->url)) {
+            throw new InvalidConfigException('Url must be specified!');
+        }
+
+        $this->_curl = curl_multi_init();
+
+        for ($i = 0; $i < static::CONNECTION_COUNT; $i++) {
+            $this->_free[] = curl_init();
+        }
     }
 
     /**
-     * @param array $log
-     *
-     * @return string
+     * @param float $timeout
+     * @return bool
      */
-    public function prepareLog($log)
+    protected function wait(float $timeout = 1.0): bool
     {
-        $result = [
-            'type'       => $log['type'],
-            '@timestamp' => date('c', $log['time']),
-            'content'    => $log['content'],
-        ];
+        if (empty($this->_used)) {
+            return true;
+        }
 
-        foreach ($this->extraFields as $name => $value) {
-            if (is_callable($value)) {
-                $result[$name] = call_user_func($value, $log);
+        do {
+            $status = curl_multi_exec($this->_curl, $running);
+
+            if (($timeout !== null) && $running) {
+                curl_multi_select($this->_curl, $timeout);
             }
-            else {
-                $result[$name] = $value;
+        } while ($running && ($status == CURLM_OK));
+
+        $done = curl_multi_info_read($this->_curl);
+
+        if (!$done) {
+            return false;
+        }
+
+        $curl = $done['handle'];
+
+        curl_multi_remove_handle($this->_curl, $curl);
+
+        unset($this->_used[$curl]);
+
+        $this->_free[] = $curl;
+
+        return true;
+    }
+
+    /**
+     * @param string $url
+     * @param string $body
+     * @throws ErrorException
+     */
+    protected function add(string $url, string $body)
+    {
+        if (empty($this->_free)) {
+            if (!$this->wait(30)) {
+                throw new ErrorException('Can\'t get free connection');
             }
         }
 
-        return implode(PHP_EOL, [
-            Json::encode([
-                'index' => new stdClass(),
-            ]),
-            Json::encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE),
+        $curl = array_pop($this->_free);
+
+        curl_setopt_array($curl, [
+            CURLOPT_URL        => $url,
+            CURLOPT_POST       => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HEADER     => false,
         ]);
+
+        curl_multi_add_handle($this->_curl, $curl);
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
+     * @throws ErrorException
      */
-    public function log($type, $content)
+    public function logStart(string $type, string $id, array $data): void
     {
-        $this->_logs[] = [
-            'time'    => microtime(true),
-            'type'    => $type,
-            'content' => $content,
-        ];
+        $body = '';
+
+        $body .= Json::encode([
+            'create' => [
+                '_type' => '_doc',
+                '_id'   => $id,
+            ],
+        ], self::JSON_PARAMS) . PHP_EOL;
+
+        $body .= Json::encode([
+            '@timestamp' => date('c'),
+            'type'       => $type,
+            'finished'   => false,
+            'data'       => $data,
+        ], self::JSON_PARAMS) . PHP_EOL;
+
+        $this->add($this->url . '/' . $this->index . '/_bulk', $body);
     }
 
     /**
-     * {@inheritdoc}
-     * @throws
+     * @inheritDoc
+     * @throws ErrorException
+     */
+    public function logEnd(string $id, array $data): void
+    {
+        $body = '';
+
+        $body .= Json::encode([
+            'update' => [
+                '_type' => '_doc',
+                '_id'   => $id,
+            ],
+        ], self::JSON_PARAMS) . PHP_EOL;
+
+        $body .= Json::encode([
+            'doc' => [
+                'finished' => true,
+                'data'     => $data,
+            ],
+        ], self::JSON_PARAMS) . PHP_EOL;
+
+        $this->add($this->url . '/' . $this->index . '/_bulk', $body);
+    }
+
+    /**
+     * @inheritDoc
+     * @throws ErrorException
+     */
+    public function log(string $type, array $data): void
+    {
+        $body = '';
+
+        $body .= Json::encode([
+            'create' => [
+                '_type' => '_doc',
+            ],
+        ], self::JSON_PARAMS) . PHP_EOL;
+
+        $body .= Json::encode([
+            '@timestamp' => date('c'),
+            'type'       => $type,
+            'data'       => $data,
+        ], self::JSON_PARAMS) . PHP_EOL;
+
+        $this->add($this->url . '/' . $this->index . '/_bulk', $body);
+    }
+
+    /**
+     * @inheritDoc
      */
     public function flush()
     {
@@ -98,5 +208,30 @@ class ElasticsearchTarget extends Target
         $this->db->post([$this->index, $this->type, '_bulk'], $this->dbOptions, $content);
 
         $this->_logs = [];
+    }
+
+    /**
+     * @inheritDoc
+     * @throws ErrorException
+     */
+    public function shutdown()
+    {
+        if (!$this->_curl) {
+            return;
+        }
+
+        if (!$this->wait(30)) {
+            throw new ErrorException('Can\'t ');
+        }
+
+        foreach ($this->_used as $connection) {
+            curl_close($connection);
+        }
+
+        foreach ($this->_free as $connection) {
+            curl_close($connection);
+        }
+
+        curl_multi_close($this->_curl);
     }
 }

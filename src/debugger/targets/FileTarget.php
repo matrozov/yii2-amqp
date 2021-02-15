@@ -35,9 +35,8 @@ class FileTarget extends Target
         parent::init();
 
         if ($this->logFile === null) {
-            $this->logFile = Yii::$app->getRuntimePath().'/logs/amqp.log';
-        }
-        else {
+            $this->logFile = Yii::$app->getRuntimePath() . '/logs/amqp.log';
+        } else {
             $this->logFile = Yii::getAlias($this->logFile);
         }
     }
@@ -47,31 +46,58 @@ class FileTarget extends Target
      *
      * @return string
      */
-    public function prepareLog($log)
+    public function formatLog(array $log): string
     {
         $time = date('Y-m-d H:i:s', $log['time']);
 
+        $id   = $log['id'];
         $type = $log['type'];
 
-        if (is_string($log['content'])) {
-            $content = $log['content'];
-        }
-        else {
-            $content = VarDumper::export($log['content']);
+        if (is_string($log['data'])) {
+            $data = $log['data'];
+        } else {
+            $data = VarDumper::export($log['data']);
         }
 
-        return sprintf("%s\t%s\t%s", $time, $type, $content);
+        return sprintf("%s\t%s\t%s\t%s", $time, $id, $type, $data);
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
-    public function log($type, $content)
+    public function logStart(string $type, string $id, array $data): void
     {
         $this->_logs[] = [
-            'time'    => microtime(true),
-            'type'    => $type,
-            'content' => $content,
+            'id'   => $id,
+            'time' => microtime(true),
+            'type' => $type,
+            'data' => $data,
+        ];
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function logEnd(string $id, array $data): void
+    {
+        $this->_logs[] = [
+            'id'   => $id,
+            'time' => microtime(true),
+            'type' => '',
+            'data' => $data,
+        ];
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function log(string $type, array $data): void
+    {
+        $this->_logs[] = [
+            'id'   => '',
+            'time' => microtime(true),
+            'type' => $type,
+            'data' => $data,
         ];
     }
 
@@ -85,7 +111,7 @@ class FileTarget extends Target
             return;
         }
 
-        $text = implode(PHP_EOL, array_map([$this, 'prepareLog'], $this->_logs)).PHP_EOL;
+        $text = implode(PHP_EOL, array_map([$this, 'formatLog'], $this->_logs)).PHP_EOL;
 
         $logPath = dirname($this->logFile);
         FileHelper::createDirectory($logPath, $this->dirMode, true);
@@ -118,5 +144,14 @@ class FileTarget extends Target
         }
 
         $this->_logs = [];
+    }
+
+    /**
+     * @throws Exception
+     * @throws InvalidConfigException
+     */
+    public function shutdown()
+    {
+        $this->flush();
     }
 }

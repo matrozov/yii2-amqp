@@ -31,29 +31,72 @@ class Debugger extends Component
             $target = Instance::ensure($target, Target::class);
         }
 
-        register_shutdown_function([$this, 'handleFatalError']);
+        register_shutdown_function([$this, 'shutdown']);
+    }
+
+    /**
+     * @param string $id
+     * @param string $type
+     * @param array  $data
+     */
+    public function event(string $id, string $type, array $data): void
+    {
+        foreach ($this->targets as $target) {
+            $target->event($id, $type, $data);
+        }
     }
 
     /**
      * @param string $type
-     * @param mixed  $content
+     * @param string $id
+     * @param array  $data
      */
-    public function log($type, $content)
+    public function logStart(string $type, string $id, array $data): void
     {
         foreach ($this->targets as $target) {
-            $target->log($type, $content);
+            $target->logStart($type, $id, $data);
         }
     }
 
-    public function flush()
+    /**
+     * @param string $id
+     * @param array  $data
+     */
+    public function logEnd(string $id, array $data): void
+    {
+        foreach ($this->targets as $target) {
+            $target->logEnd($id, $data);
+        }
+    }
+
+    /**
+     * @param string $type
+     * @param array  $data
+     */
+    public function log(string $type, array $data): void
+    {
+        foreach ($this->targets as $target) {
+            $target->log($type, $data);
+        }
+    }
+
+    /**
+     * @return void
+     */
+    public function flush(): void
     {
         foreach ($this->targets as $target) {
             $target->flush();
         }
     }
 
-    public function handleFatalError()
+    /**
+     * @return void
+     */
+    public function shutdown(): void
     {
-        $this->flush();
+        foreach ($this->targets as $target) {
+            $target->shutdown();
+        }
     }
 }
