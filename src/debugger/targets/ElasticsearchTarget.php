@@ -15,7 +15,8 @@ use yii\helpers\Json;
  * @package matrozov\yii2amqp\debugger\targets
  *
  * @property Connection|array|string $db
- * @property string $index
+ * @property string                  $index
+ * @property array                   $extraFields
  */
 class ElasticsearchTarget extends Target
 {
@@ -168,6 +169,25 @@ class ElasticsearchTarget extends Target
     }
 
     /**
+     * @param array $data
+     * @return array
+     */
+    protected function prepareExtraFields(array &$data)
+    {
+        $result = [];
+
+        foreach ($this->extraFields as $name => $value) {
+            if (is_callable($value)) {
+                $result[$name] = call_user_func($value, $result);
+            } else {
+                $result[$name] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @inheritDoc
      * @throws ErrorException
      * @throws Exception
@@ -183,6 +203,8 @@ class ElasticsearchTarget extends Target
                 '_id'   => $id,
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
+
+        $this->prepareExtraFields($data);
 
         $body .= Json::encode([
             '@timestamp' => date('c'),
@@ -236,6 +258,8 @@ class ElasticsearchTarget extends Target
                 '_type' => '_doc',
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
+
+        $this->prepareExtraFields($data);
 
         $body .= Json::encode([
             '@timestamp' => date('c'),
