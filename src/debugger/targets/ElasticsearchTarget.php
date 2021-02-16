@@ -8,6 +8,7 @@ use yii\base\InvalidConfigException;
 use yii\di\Instance;
 use yii\elasticsearch\Connection;
 use yii\elasticsearch\Exception;
+use yii\helpers\ArrayHelper;
 use yii\helpers\Json;
 
 /**
@@ -88,7 +89,7 @@ class ElasticsearchTarget extends Target
 
         curl_multi_remove_handle($this->_curl, $curl);
 
-        unset($this->_used[$curl]);
+        ArrayHelper::removeValue($this->_used, $curl);
 
         $this->_free[] = $curl;
 
@@ -167,6 +168,8 @@ class ElasticsearchTarget extends Target
         }
 
         curl_multi_add_handle($this->_curl, $curl);
+
+        $this->_used[] = $curl;
     }
 
     /**
@@ -285,7 +288,7 @@ class ElasticsearchTarget extends Target
         }
 
         if (!$this->wait(30)) {
-            throw new ErrorException('Can\'t ');
+            throw new ErrorException('Connection close timeout');
         }
 
         foreach ($this->_used as $connection) {
