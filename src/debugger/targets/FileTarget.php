@@ -78,12 +78,12 @@ class FileTarget extends Target
     /**
      * @inheritDoc
      */
-    public function logEnd(string $id, array $data): void
+    public function logEnd(string $type, string $id, array $data): void
     {
         $this->_logs[] = [
             'id'   => $id,
             'time' => microtime(true),
-            'type' => '',
+            'type' => $type,
             'data' => $data,
         ];
     }

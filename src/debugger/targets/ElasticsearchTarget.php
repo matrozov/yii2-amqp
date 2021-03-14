@@ -63,37 +63,37 @@ class ElasticsearchTarget extends Target
 
     /**
      * @param float $timeout
+     * @param bool  $waitAll
      * @return bool
      */
-    protected function wait(float $timeout = 1.0): bool
+    protected function wait(float $timeout = 1.0, bool $waitAll = false): bool
     {
         if (empty($this->_used)) {
             return true;
         }
 
         do {
-            $status = curl_multi_exec($this->_curl, $running);
+            curl_multi_exec($this->_curl, $running);
+            curl_multi_select($this->_curl, $timeout);
+        } while ($running && $waitAll);
 
-            if (($timeout !== null) && $running) {
-                curl_multi_select($this->_curl, $timeout);
+        while (true) {
+            $done = curl_multi_info_read($this->_curl);
+
+            if (!$done) {
+                break;
             }
-        } while ($running && ($status == CURLM_OK));
 
-        $done = curl_multi_info_read($this->_curl);
+            $curl = $done['handle'];
 
-        if (!$done) {
-            return false;
+            ArrayHelper::removeValue($this->_used, $curl);
+
+            curl_multi_remove_handle($this->_curl, $curl);
+
+            $this->_free[] = $curl;
         }
 
-        $curl = $done['handle'];
-
-        ArrayHelper::removeValue($this->_used, $curl);
-
-        curl_multi_remove_handle($this->_curl, $curl);
-
-        $this->_free[] = $curl;
-
-        return true;
+        return !empty($this->_free);
     }
 
     /**
@@ -133,7 +133,7 @@ class ElasticsearchTarget extends Target
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $body,
             CURLOPT_HEADER         => false,
-            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FORBID_REUSE   => false,
             CURLOPT_NOBODY         => false,
             CURLOPT_HTTPHEADER     => [
@@ -168,6 +168,7 @@ class ElasticsearchTarget extends Target
         }
 
         curl_multi_add_handle($this->_curl, $curl);
+        curl_multi_exec($this->_curl, $running);
 
         $this->_used[] = $curl;
     }
@@ -197,19 +198,22 @@ class ElasticsearchTarget extends Target
         $body = '';
 
         $body .= Json::encode([
-            'create' => [
-                '_type' => '_doc',
-                '_id'   => $id,
+            'update' => [
+                '_type'  => '_doc',
+                '_index' => $this->index,
+                '_id'    => $id,
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $this->prepareExtraFields($data);
 
         $body .= Json::encode([
-            '@timestamp' => date('c'),
-            'type'       => $type,
-            'finished'   => false,
-            'data'       => $data,
+            'doc' => [
+                '@timestamp' => date('c'),
+                'type'       => $type,
+                'start'      => $data,
+            ],
+            'doc_as_upsert' => true,
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $this->add($body);
@@ -221,22 +225,25 @@ class ElasticsearchTarget extends Target
      * @throws Exception
      * @throws InvalidConfigException
      */
-    public function logEnd(string $id, array $data): void
+    public function logEnd(string $type, string $id, array $data): void
     {
         $body = '';
 
         $body .= Json::encode([
             'update' => [
-                '_type' => '_doc',
-                '_id'   => $id,
+                '_type'  => '_doc',
+                '_index' => $this->index,
+                '_id'    => $id,
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $body .= Json::encode([
             'doc' => [
-                'finished' => true,
-                'data'     => $data,
+                '@timestamp' => date('c'),
+                'type'       => $type,
+                'end'        => $data,
             ],
+            'doc_as_upsert' => true,
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $this->add($body);
@@ -254,7 +261,8 @@ class ElasticsearchTarget extends Target
 
         $body .= Json::encode([
             'create' => [
-                '_type' => '_doc',
+                '_type'  => '_doc',
+                '_index' => $this->index,
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
 
@@ -263,7 +271,7 @@ class ElasticsearchTarget extends Target
         $body .= Json::encode([
             '@timestamp' => date('c'),
             'type'       => $type,
-            'data'       => $data,
+            'log'        => $data,
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $this->add($body);
@@ -287,7 +295,7 @@ class ElasticsearchTarget extends Target
             return;
         }
 
-        if (!$this->wait(30)) {
+        if (!$this->wait(30, true)) {
             throw new ErrorException('Connection close timeout');
         }
 

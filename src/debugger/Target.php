@@ -22,7 +22,7 @@ abstract class Target extends Component
      * @param string $id
      * @param array $data
      */
-    abstract public function logEnd(string $id, array $data): void;
+    abstract public function logEnd(string $type, string $id, array $data): void;
 
     /**
      * @param string $type

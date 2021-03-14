@@ -1642,7 +1642,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'     => Yii::$app->id,
-            'time_start' => microtime(true),
+            'time'       => microtime(true),
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
             'queue'      => $consumer->getQueue()->getQueueName(),
@@ -1664,7 +1664,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'time_end' => microtime(true),
+            'time' => microtime(true),
         ];
 
         if ($exception) {
@@ -1677,7 +1677,7 @@ class Connection extends Component implements BootstrapInterface
             ];
         }
 
-        $this->debugger->logEnd($pair_id, $debug);
+        $this->debugger->logEnd('execute', $pair_id, $debug);
 
         $this->_debug_parent_message_id = '';
     }
@@ -1713,7 +1713,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'         => Yii::$app->id,
-            'time_start'     => microtime(true),
+            'time'           => microtime(true),
             'request_id'     => $this->_debug_request_id,
             'request_action' => empty($this->_debug_parent_message_id) ? $this->_debug_request_action : '',
             'parent_id'      => $this->_debug_parent_message_id,
@@ -1748,7 +1748,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'time_end' => microtime(true),
+            'time' => microtime(true),
         ];
 
         if ($exception) {
@@ -1763,7 +1763,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = ArrayHelper::merge($debug, $fields);
 
-        $this->debugger->logEnd($pair_id, $debug);
+        $this->debugger->logEnd('send', $pair_id, $debug);
     }
 
     public function debugFlush()

@@ -59,13 +59,14 @@ class Debugger extends Component
     }
 
     /**
+     * @param string $type
      * @param string $id
      * @param array  $data
      */
-    public function logEnd(string $id, array $data): void
+    public function logEnd(string $type, string $id, array $data): void
     {
         foreach ($this->targets as $target) {
-            $target->logEnd($id, $data);
+            $target->logEnd($type, $id, $data);
         }
     }
 
