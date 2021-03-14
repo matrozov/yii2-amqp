@@ -87,9 +87,9 @@ class ElasticsearchTarget extends Target
 
         $curl = $done['handle'];
 
-        curl_multi_remove_handle($this->_curl, $curl);
-
         ArrayHelper::removeValue($this->_used, $curl);
+
+        curl_multi_remove_handle($this->_curl, $curl);
 
         $this->_free[] = $curl;
 
