@@ -1291,19 +1291,17 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @param ExecuteJob   $job
      * @param AmqpMessage  $message
      * @param AmqpConsumer $consumer
      *
-     * @throws
+     * @throws Throwable
      */
-    protected function handleMessage(AmqpMessage $message, AmqpConsumer $consumer)
+    protected function handleMessage(ExecuteJob $job, AmqpMessage $message, AmqpConsumer $consumer)
     {
-        $job = $this->messageToJob($message, $consumer);
-
         if ($job instanceof RpcExecuteJob) {
             $this->handleRpcMessage($job, $message, $consumer);
-        }
-        else {
+        } else {
             $this->handleSimpleMessage($job, $message, $consumer);
         }
     }
@@ -1326,11 +1324,15 @@ class Connection extends Component implements BootstrapInterface
             }
         }
 
-        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
-            $pair_id = $this->debugExecuteStart($consumer, $message);
+        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) {
+            $job = $this->messageToJob($message, $consumer);
+
+            $pair_id = $this->debugExecuteStart($consumer, $message, [
+                'job' => $job,
+            ]);
 
             try {
-                $this->handleMessage($message, $consumer);
+                $this->handleMessage($job, $message, $consumer);
             } catch (Throwable $exception) {
                 if ($pair_id) {
                     $this->debugExecuteEnd($pair_id, $exception);
@@ -1342,8 +1344,6 @@ class Connection extends Component implements BootstrapInterface
             if ($pair_id) {
                 $this->debugExecuteEnd($pair_id);
             }
-
-            $lastActive = time();
 
             return true;
         };
@@ -1626,10 +1626,10 @@ class Connection extends Component implements BootstrapInterface
     /**
      * @param AmqpConsumer $consumer
      * @param AmqpMessage  $message
-     *
+     * @param array        $fields
      * @return bool|string
      */
-    protected function debugExecuteStart(AmqpConsumer $consumer, AmqpMessage $message)
+    protected function debugExecuteStart(AmqpConsumer $consumer, AmqpMessage $message, array $fields = [])
     {
         if (!$this->debugger) {
             return false;
@@ -1647,6 +1647,8 @@ class Connection extends Component implements BootstrapInterface
             'message_id' => $message->getMessageId(),
             'queue'      => $consumer->getQueue()->getQueueName(),
         ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
 
         $this->debugger->logStart('execute', $pair_id, $debug);
 
