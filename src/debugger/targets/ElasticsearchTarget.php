@@ -3,6 +3,7 @@
 namespace matrozov\yii2amqp\debugger\targets;
 
 use matrozov\yii2amqp\debugger\Target;
+use Yii;
 use yii\base\ErrorException;
 use yii\base\InvalidConfigException;
 use yii\di\Instance;
@@ -54,10 +55,11 @@ class ElasticsearchTarget extends Target
 
         $this->db = Instance::ensure($this->db, Connection::class);
 
-        $this->_curl = curl_multi_init();
+        //$this->_curl = curl_multi_init();
+        $this->_curl = curl_init();
 
         for ($i = 0; $i < static::CONNECTION_COUNT; $i++) {
-            $this->_free[] = curl_init();
+            //$this->_free[] = curl_init();
         }
     }
 
@@ -86,6 +88,14 @@ class ElasticsearchTarget extends Target
 
             $curl = $done['handle'];
 
+            $code = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+
+            if ($code != 200) {
+                $content = curl_multi_getcontent($curl);
+
+                Yii::warning('Elasticsearch target log error: ' . mb_substr($content, 0, 200));
+            }
+
             ArrayHelper::removeValue($this->_used, $curl);
 
             curl_multi_remove_handle($this->_curl, $curl);
@@ -104,11 +114,11 @@ class ElasticsearchTarget extends Target
      */
     protected function add(string $body)
     {
-        if (empty($this->_free)) {
-            if (!$this->wait(30)) {
-                throw new ErrorException('Can\'t get free connection');
-            }
-        }
+//        if (empty($this->_free)) {
+//            if (!$this->wait(30)) {
+//                throw new ErrorException('Can\'t get free connection');
+//            }
+//        }
 
         $this->db->open();
 
@@ -126,7 +136,8 @@ class ElasticsearchTarget extends Target
 
         $url = $protocol . '://' . $host . '/_bulk';
 
-        $curl = array_pop($this->_free);
+        //$curl = array_pop($this->_free);
+        $curl = $this->_curl;
 
         curl_setopt_array($curl, [
             CURLOPT_URL            => $url,
@@ -167,10 +178,12 @@ class ElasticsearchTarget extends Target
             curl_setopt($curl, CURLOPT_TIMEOUT, $this->db->dataTimeout);
         }
 
-        curl_multi_add_handle($this->_curl, $curl);
-        curl_multi_exec($this->_curl, $running);
+        //curl_multi_add_handle($this->_curl, $curl);
+        //curl_multi_exec($this->_curl, $running);
 
-        $this->_used[] = $curl;
+        curl_exec($curl);
+
+        //$this->_used[] = $curl;
     }
 
     /**
@@ -198,7 +211,7 @@ class ElasticsearchTarget extends Target
         $body = '';
 
         $body .= Json::encode([
-            'update' => [
+            'create' => [
                 '_type'  => '_doc',
                 '_index' => $this->index,
                 '_id'    => $id,
@@ -208,12 +221,9 @@ class ElasticsearchTarget extends Target
         $this->prepareExtraFields($data);
 
         $body .= Json::encode([
-            'doc' => [
-                '@timestamp' => date('c'),
-                'type'       => $type,
-                'start'      => $data,
-            ],
-            'doc_as_upsert' => true,
+            '@timestamp' => date('c'),
+            'type'       => $type,
+            'start'      => $data,
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $this->add($body);
@@ -239,11 +249,8 @@ class ElasticsearchTarget extends Target
 
         $body .= Json::encode([
             'doc' => [
-                '@timestamp' => date('c'),
-                'type'       => $type,
-                'end'        => $data,
+                'end' => $data,
             ],
-            'doc_as_upsert' => true,
         ], self::JSON_PARAMS) . PHP_EOL;
 
         $this->add($body);
@@ -295,24 +302,28 @@ class ElasticsearchTarget extends Target
             return;
         }
 
-        if (!$this->wait(30, true)) {
-            throw new ErrorException('Connection close timeout');
-        }
-
-        foreach ($this->_used as $connection) {
-            curl_close($connection);
-        }
-
-        $this->_used = [];
-
-        foreach ($this->_free as $connection) {
-            curl_close($connection);
-        }
-
-        $this->_free = [];
-
-        curl_multi_close($this->_curl);
+        curl_close($this->_curl);
 
         $this->_curl = null;
+
+//        if (!$this->wait(30, true)) {
+//            throw new ErrorException('Connection close timeout');
+//        }
+//
+//        foreach ($this->_used as $connection) {
+//            curl_close($connection);
+//        }
+//
+//        $this->_used = [];
+//
+//        foreach ($this->_free as $connection) {
+//            curl_close($connection);
+//        }
+//
+//        $this->_free = [];
+//
+//        curl_multi_close($this->_curl);
+//
+//        $this->_curl = null;
     }
 }
