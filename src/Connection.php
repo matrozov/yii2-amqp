@@ -1328,7 +1328,7 @@ class Connection extends Component implements BootstrapInterface
             $job = $this->messageToJob($message, $consumer);
 
             $pair_id = $this->debugExecuteStart($consumer, $message, [
-                'job' => $job,
+                'job' => get_class($job),
             ]);
 
             try {
