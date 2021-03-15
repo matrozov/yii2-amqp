@@ -303,10 +303,16 @@ class ElasticsearchTarget extends Target
             curl_close($connection);
         }
 
+        $this->_used = [];
+
         foreach ($this->_free as $connection) {
             curl_close($connection);
         }
 
+        $this->_free = [];
+
         curl_multi_close($this->_curl);
+
+        $this->_curl = null;
     }
 }
