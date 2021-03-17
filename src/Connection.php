@@ -1341,8 +1341,7 @@ class Connection extends Component implements BootstrapInterface
 
         if (empty($queueNames)) {
             $queueNames = array_keys($this->_queues);
-        }
-        else {
+        } else {
             foreach ((array)$queueNames as $queueName) {
                 $this->getQueue($queueName);
             }

@@ -50,6 +50,6 @@ class Command extends Controller
     {
         $queueNames = func_get_args();
 
-        $this->connection->listen($queueNames, (int)$this->timeout);
+        $this->connection->listen($queueNames, $this->timeout);
     }
 }
