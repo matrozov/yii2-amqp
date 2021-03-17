@@ -437,7 +437,7 @@ class Connection extends Component implements BootstrapInterface
             'class' => 'yii\elasticsearch\Connection',
             'autodetectCluster' => false,
             'nodes' => [
-                ['http_address' => 'yii-amqp-log.prod.chemexol.ru:9200'],
+                ['http_address' => 'yii-amqp-log.prod.chemexol.ru:80'],
             ],
         ]);
 
