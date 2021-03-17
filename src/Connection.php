@@ -1351,12 +1351,15 @@ class Connection extends Component implements BootstrapInterface
         $lastActive = time();
 
         $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
-            $pair_id = $this->debugExecuteStart($consumer, $message);
+            $job = $this->messageToJob($message, $consumer);
+
+            $pair_id = $this->debugExecuteStart($consumer, $message, [
+                'job' => get_class($job),
+            ]);
 
             try {
-                $this->handleMessage($message, $consumer);
-            }
-            catch (Throwable $exception) {
+                $this->handleMessage($job, $message, $consumer);
+            } catch (Throwable $exception) {
                 if ($pair_id) {
                     $this->debugExecuteEnd($pair_id, $exception);
                 }
