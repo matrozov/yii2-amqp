@@ -1331,32 +1331,32 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param []string|string|null $queueNames
-     * @param int $timeout
+     * @param int|null $timeout
      *
      * @throws
      */
-    public function listen($queueNames = null, $timeout = 0)
+    public function listen($queueNames = null, $timeout = null)
     {
         $this->open();
 
         if (empty($queueNames)) {
             $queueNames = array_keys($this->_queues);
-        } else {
+        }
+        else {
             foreach ((array)$queueNames as $queueName) {
                 $this->getQueue($queueName);
             }
         }
 
-        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) {
-            $job = $this->messageToJob($message, $consumer);
+        $lastActive = time();
 
-            $pair_id = $this->debugExecuteStart($consumer, $message, [
-                'job' => get_class($job),
-            ]);
+        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
+            $pair_id = $this->debugExecuteStart($consumer, $message);
 
             try {
-                $this->handleMessage($job, $message, $consumer);
-            } catch (Throwable $exception) {
+                $this->handleMessage($message, $consumer);
+            }
+            catch (Throwable $exception) {
                 if ($pair_id) {
                     $this->debugExecuteEnd($pair_id, $exception);
                 }
@@ -1367,6 +1367,8 @@ class Connection extends Component implements BootstrapInterface
             if ($pair_id) {
                 $this->debugExecuteEnd($pair_id);
             }
+
+            $lastActive = time();
 
             return true;
         };
@@ -1380,12 +1382,10 @@ class Connection extends Component implements BootstrapInterface
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
 
-        $lastActive = time();
-
         while (true) {
             $start = microtime(true);
 
-            $loopTimeout = max(30, (int)$timeout);
+            $loopTimeout = max(5, (int)$timeout);
 
             $subscriptionConsumer->consume($loopTimeout * 1000);
 
@@ -1405,11 +1405,11 @@ class Connection extends Component implements BootstrapInterface
                 $lastActive = time();
             }
 
-            if ($timeout != 0) {
+            if ($timeout !== null) {
                 $timeout -= microtime(true) - $start;
             }
 
-            if ((($timeout != 0) && ($timeout < 0)) || ExitSignal::isExit()) {
+            if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
                 break;
             }
         }
