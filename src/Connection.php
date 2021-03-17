@@ -433,6 +433,29 @@ class Connection extends Component implements BootstrapInterface
 
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
+        Yii::$app->set('yii-amqp', [
+            'class' => 'yii\elasticsearch\Connection',
+            'autodetectCluster' => false,
+            'nodes' => [
+                ['http_address' => 'yii-amqp-log.prod.chemexol.ru:9200'],
+            ],
+        ]);
+
+        $this->debugger = [
+            'targets' => [
+                [
+                    'class' => 'matrozov\yii2amqp\debugger\targets\ElasticsearchTarget',
+                    'index' => 'yii-amqp',
+                    'db'    => 'efk',
+                    'extraFields' => [
+                        'namespace'    => env('NAMESPACE'),
+                        'microservice' => Yii::$app->id,
+                        'pod'          => env('HOSTNAME'),
+                    ],
+                ],
+            ],
+        ];
+
         if ($this->debugger) {
             if (is_array($this->debugger) && !isset($this->debugger['class'])) {
                 $this->debugger['class'] = Debugger::class;
@@ -440,7 +463,7 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
-            $this->_debug_request_id = uniqid('', true);
+            $this->_debug_request_id     = uniqid('', true);
             $this->_debug_request_action = Yii::$app->requestedAction ? Yii::$app->requestedAction->getUniqueId() : '';
 
             Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function () {
@@ -1624,6 +1647,14 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
+     * @return int
+     */
+    protected static function debugTime(): int
+    {
+        return (int)round(microtime(true) * 1000);
+    }
+
+    /**
      * @param AmqpConsumer $consumer
      * @param AmqpMessage  $message
      * @param array        $fields
@@ -1642,7 +1673,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'     => Yii::$app->id,
-            'time'       => microtime(true),
+            'time'       => self::debugTime(),
             'request_id' => $this->_debug_request_id,
             'message_id' => $message->getMessageId(),
             'queue'      => $consumer->getQueue()->getQueueName(),
@@ -1666,7 +1697,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'time' => microtime(true),
+            'time' => self::debugTime(),
         ];
 
         if ($exception) {
@@ -1715,7 +1746,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = [
             'app_id'         => Yii::$app->id,
-            'time'           => microtime(true),
+            'time'           => self::debugTime(),
             'request_id'     => $this->_debug_request_id,
             'request_action' => empty($this->_debug_parent_message_id) ? $this->_debug_request_action : '',
             'parent_id'      => $this->_debug_parent_message_id,
@@ -1750,7 +1781,7 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'time' => microtime(true),
+            'time' => self::debugTime(),
         ];
 
         if ($exception) {
