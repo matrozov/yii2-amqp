@@ -1380,7 +1380,45 @@ class Connection extends Component implements BootstrapInterface
             $subscriptionConsumer->subscribe($consumer, $callback);
         }
 
-        $subscriptionConsumer->consume($timeout);
+        $lastActive = time();
+
+        while (true) {
+            $start = microtime(true);
+
+            $loopTimeout = max(30, (int)$timeout);
+
+            $subscriptionConsumer->consume($loopTimeout * 1000);
+
+            if (time() - $lastActive > 60) {
+                $pingMessage = $this->_context->createMessage();
+
+                $this->_callbackProducer->send($this->_callbackQueue, $pingMessage);
+
+                $responsePingMessage = $this->_callbackConsumer->receive(60 * 1000 /* 60 sec */);
+
+                if (!$responsePingMessage) {
+                    throw new RpcTimeoutException('Ping-Pong not reached!');
+                }
+
+                $this->_callbackConsumer->acknowledge($responsePingMessage);
+
+                $lastActive = time();
+            }
+
+            if ($timeout != 0) {
+                $timeout -= microtime(true) - $start;
+            }
+
+            if ((($timeout != 0) && ($timeout < 0)) || ExitSignal::isExit()) {
+                break;
+            }
+        }
+
+        $subscriptionConsumer->unsubscribeAll();
+
+        $this->close();
+
+        $this->debugFlush();
     }
 
     /**
