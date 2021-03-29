@@ -434,11 +434,11 @@ class Connection extends Component implements BootstrapInterface
 
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
-        Yii::$app->set('yii-amqp-log', [
+        Yii::$app->set('amqp-log', [
             'class' => 'yii\elasticsearch\Connection',
             'autodetectCluster' => false,
             'nodes' => [
-                ['http_address' => 'yii-amqp-log.prod.chemexol.ru:80'],
+                ['http_address' => 'elasticsearch.amqp-log.prod.chemexol.ru:80'],
             ],
         ]);
 
@@ -446,8 +446,8 @@ class Connection extends Component implements BootstrapInterface
             'targets' => [
                 [
                     'class' => 'matrozov\yii2amqp\debugger\targets\ElasticsearchTarget',
-                    'index' => 'yii-amqp',
-                    'db'    => 'yii-amqp-log',
+                    'index' => 'amql-log',
+                    'db'    => 'amqp-log',
                     'extraFields' => [
                         'namespace'    => env('NAMESPACE'),
                         'microservice' => Yii::$app->id,
