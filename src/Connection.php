@@ -446,7 +446,7 @@ class Connection extends Component implements BootstrapInterface
             'targets' => [
                 [
                     'class' => 'matrozov\yii2amqp\debugger\targets\ElasticsearchTarget',
-                    'index' => 'amql-log',
+                    'index' => 'amqp-log',
                     'db'    => 'amqp-log',
                     'extraFields' => [
                         'namespace'    => env('NAMESPACE'),
