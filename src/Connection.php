@@ -119,6 +119,7 @@ class Connection extends Component implements BootstrapInterface
     const PROPERTY_ATTEMPT          = 'amqp-attempt';
     const PROPERTY_JOB_NAME         = 'amqp-job-name';
     const PROPERTY_DEBUG_REQUEST_ID = 'amqp-debug-request-id';
+    const PROPERTY_REDELIVERY_TO    = 'amqp-redelivery-to';
 
     const ENQUEUE_AMQP_LIB   = 'enqueue/amqp-lib';
     const ENQUEUE_AMQP_EXT   = 'enqueue/amqp-ext';
@@ -835,7 +836,7 @@ class Connection extends Component implements BootstrapInterface
 
             while (true) {
                 if ($end === null) {
-                    $responseMessage = $this->_callbackConsumer->receive(0);
+                    $responseMessage = $this->_callbackConsumer->receive();
                 } else {
                     $responseMessage = $this->_callbackConsumer->receive((int)(($end - microtime(true)) * 1000));
                 }
@@ -915,7 +916,9 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeSend($target, $job, $message);
 
-            $pair_id = $this->debugSendStart($target, $message, 'simple');
+            $pair_id = $this->debugSendStart($target, $message, 'simple', [
+                'job' => get_class($job),
+            ]);
 
             $producer->send($target, $message);
 
@@ -1080,6 +1083,7 @@ class Connection extends Component implements BootstrapInterface
             $this->beforeSend($queue, $responseJob, $responseMessage);
 
             $pair_id = $this->debugSendStart($queue, $responseMessage, 'reply', [
+                'job'      => get_class($responseJob),
                 'reply_to' => $message->getMessageId(),
             ]);
 
@@ -1490,29 +1494,38 @@ class Connection extends Component implements BootstrapInterface
             return false;
         }
 
-        $newMessage = $this->_context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
-        $newMessage->setDeliveryMode($message->getDeliveryMode());
+        $redeliveryMessage = $this->_context->createMessage($message->getBody(), $message->getProperties(), $message->getHeaders());
+        $redeliveryMessage->setMessageId(uniqid('', true));
+        $redeliveryMessage->setTimestamp(time());
 
-        $newMessage->setProperty(self::PROPERTY_ATTEMPT, ++$attempt);
+        $redeliveryMessage->setDeliveryMode($message->getDeliveryMode());
+
+        $redeliveryMessage->setProperty(self::PROPERTY_ATTEMPT, ++$attempt);
+
+        if (($redeliveryTo = $message->getProperty(self::PROPERTY_REDELIVERY_TO)) !== null) {
+            $redeliveryMessage->setProperty(self::PROPERTY_REDELIVERY_TO, $redeliveryTo);
+        } else {
+            $redeliveryMessage->setProperty(self::PROPERTY_REDELIVERY_TO, $message->getMessageId());
+        }
 
         $producer = $this->_context->createProducer();
 
-        $this->prepareMessage($producer, $newMessage, $job);
+        $this->prepareMessage($producer, $redeliveryMessage, $job);
 
         $pair_id = false;
 
         try {
-            $this->beforeSend($target, $job, $newMessage);
+            $this->beforeSend($target, $job, $redeliveryMessage);
 
-            $pair_id = $this->debugSendStart($target, $newMessage, 'redelivery', [
-                'redelivery_to' => $message->getMessageId(),
+            $pair_id = $this->debugSendStart($target, $redeliveryMessage, 'redelivery', [
+                'job'           => $job,
+                'redelivery_to' => $redeliveryMessage->getProperty(self::PROPERTY_REDELIVERY_TO),
             ]);
 
-            $producer->send($target, $newMessage);
+            $producer->send($target, $redeliveryMessage);
 
-            $this->afterSend($target, $job, $newMessage);
-        }
-        catch (Throwable $exception) {
+            $this->afterSend($target, $job, $redeliveryMessage);
+        } catch (Throwable $exception) {
             if ($pair_id) {
                 $this->debugSendEnd($pair_id, $exception);
             }
