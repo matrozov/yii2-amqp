@@ -60,10 +60,7 @@ use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use yii\web\HttpException;
 use yii\web\Request;
-use yii\base\Response as BaseResponse;
 use yii\web\Response;
-use yii\web\Response;
-use yii\web\Response as WebResponse;
 
 /**
  * Class Connection
