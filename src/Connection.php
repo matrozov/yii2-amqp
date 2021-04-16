@@ -60,6 +60,9 @@ use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
 use yii\web\HttpException;
 use yii\web\Request;
+use yii\base\Response as BaseResponse;
+use yii\web\Response;
+use yii\web\Response as WebResponse;
 
 /**
  * Class Connection
@@ -480,7 +483,11 @@ class Connection extends Component implements BootstrapInterface
                     Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
                 }
 
-                $this->debugRequestEnd($event->action, Yii::$app->response->statusCode);
+                if (Yii::$app->response instanceof Response) {
+                    $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus);
+                } else {
+                    $this->debugRequestEnd($event->action, Yii::$app->response->statusCode);
+                }
             });
         }
 
@@ -1709,6 +1716,10 @@ class Connection extends Component implements BootstrapInterface
         return (int)round(microtime(true) * 1000);
     }
 
+    /**
+     * @param Action $action
+     * @param array  $fields
+     */
     protected function debugRequestStart(Action $action, array $fields = [])
     {
         if (!$this->debugger) {
@@ -1727,15 +1738,20 @@ class Connection extends Component implements BootstrapInterface
         $this->debugger->logStart('send', $this->_debug_request_id, $debug);
     }
 
-    protected function debugRequestEnd(Action $action, int $statusCode = 0, array $fields = [])
+    /**
+     * @param Action $action
+     * @param int    $code
+     * @param array  $fields
+     */
+    protected function debugRequestEnd(Action $action, int $code = 0, array $fields = [])
     {
         if (!$this->debugger) {
             return;
         }
 
         $debug = [
-            'time'       => self::debugTime(),
-            'statusCode' => $statusCode,
+            'time' => self::debugTime(),
+            'code' => $code,
         ];
 
         $debug = ArrayHelper::merge($debug, $fields);
