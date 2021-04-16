@@ -62,6 +62,7 @@ use yii\web\HttpException;
 use yii\web\Request;
 use yii\base\Response as BaseResponse;
 use yii\web\Response;
+use yii\web\Response;
 use yii\web\Response as WebResponse;
 
 /**
@@ -391,10 +392,10 @@ class Connection extends Component implements BootstrapInterface
      */
     public $debugger = null;
 
+    /** @var string|null */
+    protected $_debug_request_id        = null;
     /** @var string */
-    protected $_debug_request_id        = '';
-    /** @var string */
-    protected $_debug_parent_message_id = '';
+    protected $_debug_parent_message_id = null;
 
     /** @var AmqpQueue */
     protected $_callbackQueue;
@@ -480,34 +481,52 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
-            if (Yii::$app->requestedAction) {
+            $beforeAction = function (Action $action) {
                 if (Yii::$app->requestedAction->uniqueId != 'amqp/listen') {
                     $this->_debug_request_id = uniqid('', true);
 
-                    $this->debugRequestStart(Yii::$app->requestedAction);
+                    $this->debugRequestStart($action);
                 }
-            }
+            };
 
-            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function (ActionEvent $event) {
-                if (Yii::$app->requestedAction->uniqueId != 'amqp/listen') {
-                    $this->_debug_request_id = uniqid('', true);
-
-                    $this->debugRequestStart($event->action);
-                }
-            });
-
-            Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) {
+            $afterAction = function (Action $action) {
                 if (Yii::$app->requestedAction->uniqueId != 'amqp/listen') {
                     if (Yii::$app->request instanceof Request) {
                         Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
                     }
 
                     if (Yii::$app->response instanceof Response) {
-                        $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
+                        $this->debugRequestEnd($action, Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
                     } else {
-                        $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus);
+                        $this->debugRequestEnd($action, Yii::$app->response->exitStatus);
                     }
+
+                    $this->_debug_request_id = null;
                 }
+            };
+
+            if (Yii::$app->requestedAction) {
+                $beforeAction(Yii::$app->requestedAction);
+            }
+
+            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function (ActionEvent $event) use ($beforeAction) {
+                $beforeAction($event->action);
+            });
+
+            Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) use ($afterAction) {
+                $afterAction($event->action);
+            });
+
+            register_shutdown_function(function () use ($afterAction) {
+                if (!$this->_debug_request_id) {
+                    return;
+                }
+
+                if (!Yii::$app->requestedAction) {
+                    return;
+                }
+
+                $afterAction(Yii::$app->requestedAction);
             });
         }
 
