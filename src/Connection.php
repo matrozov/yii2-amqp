@@ -484,9 +484,9 @@ class Connection extends Component implements BootstrapInterface
                 }
 
                 if (Yii::$app->response instanceof Response) {
-                    $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus);
-                } else {
                     $this->debugRequestEnd($event->action, Yii::$app->response->statusCode);
+                } else {
+                    $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus);
                 }
             });
         }
