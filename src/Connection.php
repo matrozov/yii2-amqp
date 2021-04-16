@@ -1741,7 +1741,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = ArrayHelper::merge($debug, $fields);
 
-        $this->debugger->logStart('send', $this->_debug_request_id, $debug);
+        $this->debugger->logStart('request', $this->_debug_request_id, $debug);
     }
 
     /**
@@ -1762,7 +1762,7 @@ class Connection extends Component implements BootstrapInterface
 
         $debug = ArrayHelper::merge($debug, $fields);
 
-        $this->debugger->logEnd('send', $this->_debug_request_id, $debug);
+        $this->debugger->logEnd('request', $this->_debug_request_id, $debug);
     }
 
     /**
