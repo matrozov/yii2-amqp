@@ -1733,6 +1733,12 @@ class Connection extends Component implements BootstrapInterface
             'request_action' => $action->getUniqueId(),
         ];
 
+        if (Yii::$app->request instanceof Request) {
+            $debug['request_url'] = Yii::$app->request->url;
+        } else {
+            $debug['request_url'] = null;
+        }
+
         $debug = ArrayHelper::merge($debug, $fields);
 
         $this->debugger->logStart('send', $this->_debug_request_id, $debug);
