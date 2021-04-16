@@ -454,6 +454,20 @@ class Connection extends Component implements BootstrapInterface
                     'extraFields' => [
                         'namespace' => env('NAMESPACE'),
                         'pod'       => env('HOSTNAME'),
+                        'user_id' => function () {
+                            if (Yii::$app->user->isGuest) {
+                                return null;
+                            }
+
+                            return Yii::$app->user->id;
+                        },
+                        'organization_id' => function () {
+                            if (Yii::$app->user->isGuest) {
+                                return null;
+                            }
+
+                            return ArrayHelper::getValue(Yii::$app->user->identity, 'organization_id', null);
+                        },
                     ],
                 ],
             ],
@@ -484,7 +498,7 @@ class Connection extends Component implements BootstrapInterface
                 }
 
                 if (Yii::$app->response instanceof Response) {
-                    $this->debugRequestEnd($event->action, Yii::$app->response->statusCode);
+                    $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
                 } else {
                     $this->debugRequestEnd($event->action, Yii::$app->response->exitStatus);
                 }
@@ -1745,19 +1759,21 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param Action $action
-     * @param int    $code
-     * @param array  $fields
+     * @param Action   $action
+     * @param int      $exitStatus
+     * @param int|null $statusCode
+     * @param array    $fields
      */
-    protected function debugRequestEnd(Action $action, int $code = 0, array $fields = [])
+    protected function debugRequestEnd(Action $action, int $exitStatus = 0, ?int $statusCode = null, array $fields = [])
     {
         if (!$this->debugger) {
             return;
         }
 
         $debug = [
-            'time' => self::debugTime(),
-            'code' => $code,
+            'time'       => self::debugTime(),
+            'exitStatus' => $exitStatus,
+            'statusCode' => $statusCode,
         ];
 
         $debug = ArrayHelper::merge($debug, $fields);
