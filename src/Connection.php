@@ -47,6 +47,8 @@ use matrozov\yii2amqp\serializers\JsonSerializer;
 use matrozov\yii2amqp\serializers\Serializer;
 use Throwable;
 use Yii;
+use yii\base\Action;
+use yii\base\ActionEvent;
 use yii\base\BootstrapInterface;
 use yii\base\Component;
 use yii\base\ErrorException;
@@ -389,8 +391,6 @@ class Connection extends Component implements BootstrapInterface
     /** @var string */
     protected $_debug_request_id        = '';
     /** @var string */
-    protected $_debug_request_action    = '';
-    /** @var string */
     protected $_debug_parent_message_id = '';
 
     /** @var AmqpQueue */
@@ -449,9 +449,8 @@ class Connection extends Component implements BootstrapInterface
                     'index' => 'amqp-log',
                     'db'    => 'amqp-log',
                     'extraFields' => [
-                        'namespace'    => env('NAMESPACE'),
-                        'microservice' => Yii::$app->id,
-                        'pod'          => env('HOSTNAME'),
+                        'namespace' => env('NAMESPACE'),
+                        'pod'       => env('HOSTNAME'),
                     ],
                 ],
             ],
@@ -464,22 +463,25 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
-            $this->_debug_request_id     = uniqid('', true);
-            $this->_debug_request_action = Yii::$app->requestedAction ? Yii::$app->requestedAction->getUniqueId() : '';
-
-            Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function () {
+            if (Yii::$app->requestedAction) {
                 $this->_debug_request_id = uniqid('', true);
-            });
 
-            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function () {
-                $this->_debug_request_action = Yii::$app->requestedAction->getUniqueId();
-            });
-
-            if (Yii::$app->request instanceof Request) {
-                Yii::$app->on(Application::EVENT_AFTER_ACTION, function () {
-                    Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
-                });
+                $this->debugRequestStart(Yii::$app->requestedAction);
             }
+
+            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function (ActionEvent $event) {
+                $this->_debug_request_id = uniqid('', true);
+
+                $this->debugRequestStart($event->action);
+            });
+
+            Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) {
+                if (Yii::$app->request instanceof Request) {
+                    Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
+                }
+
+                $this->debugRequestEnd($event->action, Yii::$app->response->statusCode);
+            });
         }
 
         Yii::$app->on(Application::EVENT_AFTER_REQUEST, function () {
@@ -818,7 +820,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeSend($target, $job, $message);
 
-            $pair_id = $this->debugSendStart($target, $message, 'rpc', [
+            $pair_id = $this->debugMessageSendStart($target, $message, 'rpc', [
                 'job' => get_class($job),
             ]);
 
@@ -883,14 +885,14 @@ class Connection extends Component implements BootstrapInterface
             }
         } catch (Throwable $exception) {
             if ($pair_id) {
-                $this->debugSendEnd($pair_id, $exception);
+                $this->debugMessageSendEnd($pair_id, $exception);
             }
 
             throw $exception;
         }
 
         if ($pair_id) {
-            $this->debugSendEnd($pair_id);
+            $this->debugMessageSendEnd($pair_id);
         }
 
         return $result;
@@ -916,7 +918,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeSend($target, $job, $message);
 
-            $pair_id = $this->debugSendStart($target, $message, 'simple', [
+            $pair_id = $this->debugMessageSendStart($target, $message, 'simple', [
                 'job' => get_class($job),
             ]);
 
@@ -926,14 +928,14 @@ class Connection extends Component implements BootstrapInterface
         }
         catch (Throwable $exception) {
             if ($pair_id) {
-                $this->debugSendEnd($pair_id, $exception);
+                $this->debugMessageSendEnd($pair_id, $exception);
             }
 
             throw $exception;
         }
 
         if ($pair_id) {
-            $this->debugSendEnd($pair_id);
+            $this->debugMessageSendEnd($pair_id);
         }
 
         return true;
@@ -1010,7 +1012,7 @@ class Connection extends Component implements BootstrapInterface
 
             $this->beforeSend($exchange, $job, $message);
 
-            $pair_id = $this->debugSendStart($exchange, $message, 'rpc', [
+            $pair_id = $this->debugMessageSendStart($exchange, $message, 'rpc', [
                 'job' => get_class($job),
             ]);
 
@@ -1082,7 +1084,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeSend($queue, $responseJob, $responseMessage);
 
-            $pair_id = $this->debugSendStart($queue, $responseMessage, 'reply', [
+            $pair_id = $this->debugMessageSendStart($queue, $responseMessage, 'reply', [
                 'job'      => get_class($responseJob),
                 'reply_to' => $message->getMessageId(),
             ]);
@@ -1093,14 +1095,14 @@ class Connection extends Component implements BootstrapInterface
         }
         catch (Throwable $exception) {
             if ($pair_id) {
-                $this->debugSendEnd($pair_id, $exception);
+                $this->debugMessageSendEnd($pair_id, $exception);
             }
 
             throw $exception;
         }
 
         if ($pair_id) {
-            $this->debugSendEnd($pair_id);
+            $this->debugMessageSendEnd($pair_id);
         }
 
         return $responseMessage;
@@ -1356,7 +1358,7 @@ class Connection extends Component implements BootstrapInterface
         $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
             $job = $this->messageToJob($message, $consumer);
 
-            $pair_id = $this->debugExecuteStart($consumer, $message, [
+            $pair_id = $this->debugMessageExecuteStart($consumer, $message, [
                 'job' => get_class($job),
             ]);
 
@@ -1364,14 +1366,14 @@ class Connection extends Component implements BootstrapInterface
                 $this->handleMessage($job, $message, $consumer);
             } catch (Throwable $exception) {
                 if ($pair_id) {
-                    $this->debugExecuteEnd($pair_id, $exception);
+                    $this->debugMessageExecuteEnd($pair_id, $exception);
                 }
 
                 throw $exception;
             }
 
             if ($pair_id) {
-                $this->debugExecuteEnd($pair_id);
+                $this->debugMessageExecuteEnd($pair_id);
             }
 
             $lastActive = time();
@@ -1517,7 +1519,7 @@ class Connection extends Component implements BootstrapInterface
         try {
             $this->beforeSend($target, $job, $redeliveryMessage);
 
-            $pair_id = $this->debugSendStart($target, $redeliveryMessage, 'redelivery', [
+            $pair_id = $this->debugMessageSendStart($target, $redeliveryMessage, 'redelivery', [
                 'job'           => $job,
                 'redelivery_to' => $redeliveryMessage->getProperty(self::PROPERTY_REDELIVERY_TO),
             ]);
@@ -1527,14 +1529,14 @@ class Connection extends Component implements BootstrapInterface
             $this->afterSend($target, $job, $redeliveryMessage);
         } catch (Throwable $exception) {
             if ($pair_id) {
-                $this->debugSendEnd($pair_id, $exception);
+                $this->debugMessageSendEnd($pair_id, $exception);
             }
 
             throw $exception;
         }
 
         if ($pair_id) {
-            $this->debugSendEnd($pair_id);
+            $this->debugMessageSendEnd($pair_id);
         }
 
         return true;
@@ -1707,13 +1709,127 @@ class Connection extends Component implements BootstrapInterface
         return (int)round(microtime(true) * 1000);
     }
 
+    protected function debugRequestStart(Action $action, array $fields = [])
+    {
+        if (!$this->debugger) {
+            return;
+        }
+
+        $debug = [
+            'app_id'         => Yii::$app->id,
+            'time'           => self::debugTime(),
+            'request_id'     => $this->_debug_request_id,
+            'request_action' => $action->getUniqueId(),
+        ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
+
+        $this->debugger->logStart('send', $this->_debug_request_id, $debug);
+    }
+
+    protected function debugRequestEnd(Action $action, int $statusCode = 0, array $fields = [])
+    {
+        if (!$this->debugger) {
+            return;
+        }
+
+        $debug = [
+            'time'       => self::debugTime(),
+            'statusCode' => $statusCode,
+        ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
+
+        $this->debugger->logEnd('send', $this->_debug_request_id, $debug);
+    }
+
+    /**
+     * @param AmqpDestination $destination
+     * @param AmqpMessage     $message
+     * @param string          $sub_type
+     * @param array           $fields
+     *
+     * @return bool|string
+     * @throws ErrorException
+     */
+    protected function debugMessageSendStart(AmqpDestination $destination, AmqpMessage $message, string $sub_type, array $fields = [])
+    {
+        if (!$this->debugger) {
+            return false;
+        }
+
+        if ($destination instanceof AmqpTopic) {
+            $target_type = 'topic';
+            $target = $destination->getTopicName();
+        }
+        elseif ($destination instanceof AmqpQueue) {
+            $target_type = 'queue';
+            $target = $destination->getQueueName();
+        }
+        else {
+            throw new ErrorException('Unknown destination type');
+        }
+
+        $pair_id = uniqid('', true);
+
+        $debug = [
+            'app_id'         => Yii::$app->id,
+            'time'           => self::debugTime(),
+            'request_id'     => $this->_debug_request_id,
+            'parent_id'      => $this->_debug_parent_message_id,
+            'message_id'     => $message->getMessageId(),
+            'sub_type'       => $sub_type,
+            'target_type'    => $target_type,
+            'target'         => $target,
+            'message'        => [
+                'headers'    => $message->getHeaders(),
+                'properties' => $message->getProperties(),
+                'body'       => mb_substr($message->getBody(), 0, 4096),
+            ],
+        ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
+
+        $this->debugger->logStart('send', $pair_id, $debug);
+
+        return $pair_id;
+    }
+
+    /**
+     * @param string         $pair_id
+     * @param Throwable|null $exception
+     * @param array          $fields
+     *
+     */
+    protected function debugMessageSendEnd(string $pair_id, Throwable $exception = null, array $fields = [])
+    {
+        if (!$this->debugger) {
+            return;
+        }
+
+        $debug = [
+            'time' => self::debugTime(),
+            'exception' => [
+                'message' => $exception ? $exception->getMessage()       : null,
+                'code'    => $exception ? $exception->getCode()          : null,
+                'file'    => $exception ? $exception->getFile()          : null,
+                'line'    => $exception ? $exception->getLine()          : null,
+                'trace'   => $exception ? $exception->getTraceAsString() : null,
+            ]
+        ];
+
+        $debug = ArrayHelper::merge($debug, $fields);
+
+        $this->debugger->logEnd('send', $pair_id, $debug);
+    }
+
     /**
      * @param AmqpConsumer $consumer
      * @param AmqpMessage  $message
      * @param array        $fields
      * @return bool|string
      */
-    protected function debugExecuteStart(AmqpConsumer $consumer, AmqpMessage $message, array $fields = [])
+    protected function debugMessageExecuteStart(AmqpConsumer $consumer, AmqpMessage $message, array $fields = [])
     {
         if (!$this->debugger) {
             return false;
@@ -1743,7 +1859,7 @@ class Connection extends Component implements BootstrapInterface
      * @param string         $pair_id
      * @param Throwable|null $exception
      */
-    protected function debugExecuteEnd(string $pair_id, Throwable $exception = null)
+    protected function debugMessageExecuteEnd(string $pair_id, Throwable $exception = null)
     {
         if (!$this->debugger) {
             return;
@@ -1766,90 +1882,6 @@ class Connection extends Component implements BootstrapInterface
         $this->debugger->logEnd('execute', $pair_id, $debug);
 
         $this->_debug_parent_message_id = '';
-    }
-
-    /**
-     * @param AmqpDestination $destination
-     * @param AmqpMessage     $message
-     * @param string          $sub_type
-     * @param array           $fields
-     *
-     * @return bool|string
-     * @throws ErrorException
-     */
-    protected function debugSendStart(AmqpDestination $destination, AmqpMessage $message, string $sub_type, array $fields = [])
-    {
-        if (!$this->debugger) {
-            return false;
-        }
-
-        if ($destination instanceof AmqpTopic) {
-            $target_type = 'topic';
-            $target = $destination->getTopicName();
-        }
-        elseif ($destination instanceof AmqpQueue) {
-            $target_type = 'queue';
-            $target = $destination->getQueueName();
-        }
-        else {
-            throw new ErrorException('Unknown destination type');
-        }
-
-        $pair_id = uniqid('', true);
-
-        $debug = [
-            'app_id'         => Yii::$app->id,
-            'time'           => self::debugTime(),
-            'request_id'     => $this->_debug_request_id,
-            'request_action' => empty($this->_debug_parent_message_id) ? $this->_debug_request_action : '',
-            'parent_id'      => $this->_debug_parent_message_id,
-            'message_id'     => $message->getMessageId(),
-            'sub_type'       => $sub_type,
-            'target_type'    => $target_type,
-            'target'         => $target,
-            'message'        => [
-                'headers'    => $message->getHeaders(),
-                'properties' => $message->getProperties(),
-                'body'       => mb_substr($message->getBody(), 0, 4096),
-            ],
-        ];
-
-        $debug = ArrayHelper::merge($debug, $fields);
-
-        $this->debugger->logStart('send', $pair_id, $debug);
-
-        return $pair_id;
-    }
-
-    /**
-     * @param string         $pair_id
-     * @param Throwable|null $exception
-     * @param array          $fields
-     *
-     */
-    protected function debugSendEnd(string $pair_id, Throwable $exception = null, array $fields = [])
-    {
-        if (!$this->debugger) {
-            return;
-        }
-
-        $debug = [
-            'time' => self::debugTime(),
-        ];
-
-        if ($exception) {
-            $debug['exception'] = [
-                'message' => $exception->getMessage(),
-                'code'    => $exception->getCode(),
-                'file'    => $exception->getFile(),
-                'line'    => $exception->getLine(),
-                'trace'   => $exception->getTraceAsString(),
-            ];
-        }
-
-        $debug = ArrayHelper::merge($debug, $fields);
-
-        $this->debugger->logEnd('send', $pair_id, $debug);
     }
 
     public function debugFlush()
