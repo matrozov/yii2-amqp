@@ -1793,9 +1793,9 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $debug = [
-            'time'       => self::debugTime(),
-            'exitStatus' => $exitStatus,
-            'statusCode' => $statusCode,
+            'time'        => self::debugTime(),
+            'exit_status' => $exitStatus,
+            'status_code' => $statusCode,
         ];
 
         $debug = ArrayHelper::merge($debug, $fields);
