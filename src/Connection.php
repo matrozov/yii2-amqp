@@ -101,15 +101,15 @@ use yii\web\Response;
  * @property int|null          $priority
  * @property float|int|null    $ttl
  *
- * @property []array        $exchanges
- * @property []array        $queues
- * @property []array        $bindings
+ * @property []array           $exchanges
+ * @property []array           $queues
+ * @property []array           $bindings
  *
- * @property []string       $jobNames
+ * @property []string          $jobNames
  *
- * @property []array        $defaultQueue
- * @property []array        $defaultExchange
- * @property []array        $defaultBind
+ * @property []array           $defaultQueue
+ * @property []array           $defaultExchange
+ * @property []array           $defaultBind
  *
  * @property int|null          $rpcTimeout
  *
@@ -124,16 +124,16 @@ class Connection extends Component implements BootstrapInterface
     const PROPERTY_DEBUG_REQUEST_ID = 'amqp-debug-request-id';
     const PROPERTY_REDELIVERY_TO    = 'amqp-redelivery-to';
 
-    const ENQUEUE_AMQP_LIB   = 'enqueue/amqp-lib';
-    const ENQUEUE_AMQP_EXT   = 'enqueue/amqp-ext';
-    const ENQUEUE_AMQP_BUNNY = 'enqueue/amqp-bunny';
+    const ENQUEUE_AMQP_LIB          = 'enqueue/amqp-lib';
+    const ENQUEUE_AMQP_EXT          = 'enqueue/amqp-ext';
+    const ENQUEUE_AMQP_BUNNY        = 'enqueue/amqp-bunny';
 
-    const EVENT_BEFORE_SEND     = 'beforeSend';
-    const EVENT_AFTER_SEND      = 'afterSend';
-    const EVENT_BEFORE_EXECUTE  = 'beforeExecute';
-    const EVENT_AFTER_EXECUTE   = 'afterExecute';
-    const EVENT_BEFORE_RESPONSE = 'beforeResponse';
-    const EVENT_AFTER_RESPONSE  = 'afterResponse';
+    const EVENT_BEFORE_SEND         = 'beforeSend';
+    const EVENT_AFTER_SEND          = 'afterSend';
+    const EVENT_BEFORE_EXECUTE      = 'beforeExecute';
+    const EVENT_AFTER_EXECUTE       = 'afterExecute';
+    const EVENT_BEFORE_RESPONSE     = 'beforeResponse';
+    const EVENT_AFTER_RESPONSE      = 'afterResponse';
 
     /**
      * The connection to the worker could be configured as an array of options
@@ -487,6 +487,10 @@ class Connection extends Component implements BootstrapInterface
             };
 
             $afterAction = function (Action $action) {
+                if (!$this->_debug_request_id) {
+                    return;
+                }
+
                 if (Yii::$app->requestedAction->uniqueId != 'amqp/listen') {
                     if (Yii::$app->request instanceof Request) {
                         Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
@@ -502,13 +506,11 @@ class Connection extends Component implements BootstrapInterface
                 }
             };
 
-            if (Yii::$app->requestedAction) {
-                $beforeAction(Yii::$app->requestedAction);
-            }
-
-            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function (ActionEvent $event) use ($beforeAction) {
-                $beforeAction($event->action);
-            });
+            $this->on(self::EVENT_BEFORE_SEND, function (SendEvent $event) use ($beforeAction) {
+                if (!$this->_debug_request_id) {
+                    $beforeAction(Yii::$app->requestedAction);
+                }
+            }, null, false);
 
             Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) use ($afterAction) {
                 $afterAction($event->action);
