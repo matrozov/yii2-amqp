@@ -453,14 +453,14 @@ class Connection extends Component implements BootstrapInterface
                         'namespace' => env('NAMESPACE'),
                         'pod'       => env('HOSTNAME'),
                         'user_id' => function () {
-                            if (Yii::$app->user->isGuest) {
+                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
                                 return null;
                             }
 
                             return Yii::$app->user->id;
                         },
                         'organization_id' => function () {
-                            if (Yii::$app->user->isGuest) {
+                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
                                 return null;
                             }
 
