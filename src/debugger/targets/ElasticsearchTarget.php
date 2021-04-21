@@ -24,6 +24,9 @@ class ElasticsearchTarget extends Target
 {
     const CONNECTION_COUNT = 10;
 
+    const CACHE_INDEX_NAME     = 'elastic_index_by_alias-%s';
+    const CACHE_INDEX_NAME_TTL = 60;
+
     const JSON_PARAMS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE;
 
     public $db          = 'elasticsearch';
@@ -107,20 +110,21 @@ class ElasticsearchTarget extends Target
     }
 
     /**
-     * @param string $body
-     * @throws ErrorException
+     * @param string $url
+     * @param string|null $body
+     * @return bool|string
      * @throws Exception
      * @throws InvalidConfigException
      */
-    protected function add(string $body)
+    protected function request(string $url, ?string $body = null)
     {
+        $this->db->open();
+
 //        if (empty($this->_free)) {
 //            if (!$this->wait(30)) {
 //                throw new ErrorException('Can\'t get free connection');
 //            }
 //        }
-
-        $this->db->open();
 
         $node     = $this->db->nodes[$this->db->activeNode];
         $protocol = isset($node['protocol']) ? $node['protocol'] : $this->db->defaultProtocol;
@@ -134,15 +138,13 @@ class ElasticsearchTarget extends Target
             }
         }
 
-        $url = $protocol . '://' . $host . '/_bulk';
+        $url = $protocol . '://' . $host . $url;
 
         //$curl = array_pop($this->_free);
         $curl = $this->_curl;
 
         curl_setopt_array($curl, [
             CURLOPT_URL            => $url,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
             CURLOPT_HEADER         => false,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FORBID_REUSE   => false,
@@ -152,6 +154,13 @@ class ElasticsearchTarget extends Target
                 'Content-Type: application/json',
             ],
         ]);
+
+        if ($body !== null) {
+            curl_setopt_array($curl, [
+                CURLOPT_POST       => true,
+                CURLOPT_POSTFIELDS => $body,
+            ]);
+        }
 
         if (!empty($this->db->auth) || isset($node['auth']) && $node['auth'] !== false) {
             $auth = $node['auth'] ?: $this->db->auth;
@@ -181,9 +190,54 @@ class ElasticsearchTarget extends Target
         //curl_multi_add_handle($this->_curl, $curl);
         //curl_multi_exec($this->_curl, $running);
 
-        curl_exec($curl);
+        return curl_exec($curl);
 
         //$this->_used[] = $curl;
+    }
+
+    /**
+     * @param string $alias
+     * @return string
+     * @throws Exception
+     * @throws InvalidConfigException
+     */
+    protected function getIndexName(string $alias): string
+    {
+        $cache = Yii::$app->getCache();
+
+        if ($cache) {
+            $index = $cache->get(sprintf(self::CACHE_INDEX_NAME, $alias));
+
+            if ($index !== false) {
+                return $index;
+            }
+        }
+
+        $response = $this->request('/_cat/aliases/' . $alias);
+        $response = Json::decode($response);
+
+        if (!empty($response)) {
+            $index = ArrayHelper::getValue(reset($response), 'index');
+        } else {
+            $index = $alias;
+        }
+
+        if ($cache) {
+            $cache->set(sprintf(self::CACHE_INDEX_NAME, $alias), $index, self::CACHE_INDEX_NAME_TTL);
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param string $body
+     * @throws ErrorException
+     * @throws Exception
+     * @throws InvalidConfigException
+     */
+    protected function add(string $body)
+    {
+        $this->request('/_bulk', $body);
     }
 
     /**
@@ -213,7 +267,7 @@ class ElasticsearchTarget extends Target
         $body .= Json::encode([
             'create' => [
                 '_type'  => '_doc',
-                '_index' => $this->index,
+                '_index' => $this->getIndexName($this->index),
                 '_id'    => $id,
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
@@ -242,7 +296,7 @@ class ElasticsearchTarget extends Target
         $body .= Json::encode([
             'update' => [
                 '_type'  => '_doc',
-                '_index' => $this->index,
+                '_index' => $this->getIndexName($this->index),
                 '_id'    => $id,
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
@@ -269,7 +323,7 @@ class ElasticsearchTarget extends Target
         $body .= Json::encode([
             'create' => [
                 '_type'  => '_doc',
-                '_index' => $this->index,
+                '_index' => $this->getIndexName($this->index),
             ],
         ], self::JSON_PARAMS) . PHP_EOL;
 

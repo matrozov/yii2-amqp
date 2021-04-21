@@ -51,6 +51,7 @@ use yii\base\Action;
 use yii\base\ActionEvent;
 use yii\base\BootstrapInterface;
 use yii\base\Component;
+use yii\base\Controller;
 use yii\base\ErrorException;
 use yii\base\InvalidArgumentException;
 use yii\base\InvalidConfigException;
@@ -479,7 +480,7 @@ class Connection extends Component implements BootstrapInterface
             $this->debugger = Instance::ensure($this->debugger);
 
             $beforeAction = function (Action $action) {
-                if (Yii::$app->requestedAction->uniqueId != 'amqp/listen') {
+                if ($action->uniqueId != 'amqp/listen') {
                     $this->_debug_request_id = uniqid('', true);
 
                     $this->debugRequestStart($action);
@@ -491,7 +492,7 @@ class Connection extends Component implements BootstrapInterface
                     return;
                 }
 
-                if (Yii::$app->requestedAction->uniqueId != 'amqp/listen') {
+                if ($action->uniqueId != 'amqp/listen') {
                     if (Yii::$app->request instanceof Request) {
                         Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
                     }
@@ -506,26 +507,26 @@ class Connection extends Component implements BootstrapInterface
                 }
             };
 
-            $this->on(self::EVENT_BEFORE_SEND, function (SendEvent $event) use ($beforeAction) {
+            $this->on(self::EVENT_BEFORE_SEND, function () use ($beforeAction) {
                 if (!$this->_debug_request_id) {
                     $beforeAction(Yii::$app->requestedAction);
                 }
             }, null, false);
 
-            Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) use ($afterAction) {
-                $afterAction($event->action);
+            Yii::$app->on(Application::EVENT_AFTER_ACTION, function () use ($afterAction) {
+                $afterAction(Yii::$app->requestedAction);
+            });
+
+            $this->on(static::EVENT_AFTER_EXECUTE, function () {
+                $this->debugger->flush();
             });
 
             register_shutdown_function(function () use ($afterAction) {
-                if (!$this->_debug_request_id) {
-                    return;
+                if (Yii::$app->requestedAction) {
+                    $afterAction(Yii::$app->requestedAction);
                 }
 
-                if (!Yii::$app->requestedAction) {
-                    return;
-                }
-
-                $afterAction(Yii::$app->requestedAction);
+                $this->debugger->shutdown();
             });
         }
 
@@ -534,12 +535,6 @@ class Connection extends Component implements BootstrapInterface
 
             if ($this->debugger) {
                 $this->debugger->shutdown();
-            }
-        });
-
-        $this->on(static::EVENT_AFTER_EXECUTE, function () {
-            if ($this->debugger) {
-                $this->debugger->flush();
             }
         });
 

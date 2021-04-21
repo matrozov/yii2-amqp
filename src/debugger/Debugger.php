@@ -30,8 +30,6 @@ class Debugger extends Component
         foreach ($this->targets as &$target) {
             $target = Instance::ensure($target, Target::class);
         }
-
-        register_shutdown_function([$this, 'shutdown']);
     }
 
     /**
