@@ -160,6 +160,10 @@ class ElasticsearchTarget extends Target
                 CURLOPT_POST       => true,
                 CURLOPT_POSTFIELDS => $body,
             ]);
+        } else {
+            curl_setopt_array($curl, [
+                CURLOPT_POST       => false,
+            ]);
         }
 
         if (!empty($this->db->auth) || isset($node['auth']) && $node['auth'] !== false) {
@@ -213,7 +217,7 @@ class ElasticsearchTarget extends Target
             }
         }
 
-        $response = $this->request('/_cat/aliases/' . $alias);
+        $response = $this->request('/_cat/aliases/' . $alias . '?format=json');
         $response = Json::decode($response);
 
         if (!empty($response)) {
