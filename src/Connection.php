@@ -392,6 +392,8 @@ class Connection extends Component implements BootstrapInterface
 
     /** @var string|null */
     protected $_debug_request_id        = null;
+    /** @var bool */
+    protected $_debug_request_handled   = false;
     /** @var string */
     protected $_debug_parent_message_id = null;
 
@@ -480,7 +482,8 @@ class Connection extends Component implements BootstrapInterface
             $this->debugger = Instance::ensure($this->debugger);
 
 
-            $this->_debug_request_id = uniqid('', true);
+            $this->_debug_request_id      = uniqid('', true);
+            $this->_debug_request_handled = false;
 
             $beforeAction = function (Action $action) {
                 if ($action->uniqueId != 'amqp/listen') {
@@ -504,13 +507,16 @@ class Connection extends Component implements BootstrapInterface
                         $this->debugRequestEnd($action, Yii::$app->response->exitStatus);
                     }
 
-                    $this->_debug_request_id = uniqid('', true);
+                    $this->_debug_request_id      = uniqid('', true);
+                    $this->_debug_request_handled = false;
                 }
             };
 
             $this->on(self::EVENT_BEFORE_SEND, function () use ($beforeAction) {
-                if (!$this->_debug_request_id) {
+                if (!$this->_debug_request_handled) {
                     $beforeAction(Yii::$app->requestedAction);
+
+                    $this->_debug_request_handled = true;
                 }
             }, null, false);
 
