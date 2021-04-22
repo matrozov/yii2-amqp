@@ -479,10 +479,11 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
+
+            $this->_debug_request_id = uniqid('', true);
+
             $beforeAction = function (Action $action) {
                 if ($action->uniqueId != 'amqp/listen') {
-                    $this->_debug_request_id = uniqid('', true);
-
                     $this->debugRequestStart($action);
                 }
             };
@@ -503,7 +504,7 @@ class Connection extends Component implements BootstrapInterface
                         $this->debugRequestEnd($action, Yii::$app->response->exitStatus);
                     }
 
-                    $this->_debug_request_id = null;
+                    $this->_debug_request_id = uniqid('', true);
                 }
             };
 
