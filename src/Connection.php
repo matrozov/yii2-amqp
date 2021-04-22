@@ -486,30 +486,34 @@ class Connection extends Component implements BootstrapInterface
             $this->_debug_request_handled = false;
 
             $beforeAction = function (Action $action) {
-                if ($action->uniqueId != 'amqp/listen') {
-                    $this->debugRequestStart($action);
-                }
-            };
-
-            $afterAction = function (Action $action) {
-                if (!$this->_debug_request_id) {
+                if ($action->uniqueId == 'amqp/listen') {
                     return;
                 }
 
-                if ($action->uniqueId != 'amqp/listen') {
-                    if (Yii::$app->request instanceof Request) {
-                        Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
-                    }
+                $this->debugRequestStart($action);
+            };
 
-                    if (Yii::$app->response instanceof Response) {
-                        $this->debugRequestEnd($action, Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
-                    } else {
-                        $this->debugRequestEnd($action, Yii::$app->response->exitStatus);
-                    }
-
-                    $this->_debug_request_id      = uniqid('', true);
-                    $this->_debug_request_handled = false;
+            $afterAction = function (Action $action) {
+                if ($this->_debug_request_handled) {
+                    return;
                 }
+
+                if ($action->uniqueId == 'amqp/listen') {
+                    return;
+                }
+
+                if (Yii::$app->request instanceof Request) {
+                    Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
+                }
+
+                if (Yii::$app->response instanceof Response) {
+                    $this->debugRequestEnd($action, Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
+                } else {
+                    $this->debugRequestEnd($action, Yii::$app->response->exitStatus);
+                }
+
+                $this->_debug_request_id      = uniqid('', true);
+                $this->_debug_request_handled = false;
             };
 
             $this->on(self::EVENT_BEFORE_SEND, function () use ($beforeAction) {
