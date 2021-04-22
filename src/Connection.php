@@ -494,7 +494,7 @@ class Connection extends Component implements BootstrapInterface
             };
 
             $afterAction = function (Action $action) {
-                if ($this->_debug_request_handled) {
+                if (!$this->_debug_request_handled) {
                     return;
                 }
 
@@ -517,11 +517,13 @@ class Connection extends Component implements BootstrapInterface
             };
 
             $this->on(self::EVENT_BEFORE_SEND, function () use ($beforeAction) {
-                if (!$this->_debug_request_handled) {
-                    $beforeAction(Yii::$app->requestedAction);
-
-                    $this->_debug_request_handled = true;
+                if ($this->_debug_request_handled) {
+                    return;
                 }
+
+                $beforeAction(Yii::$app->requestedAction);
+
+                $this->_debug_request_handled = true;
             }, null, false);
 
             Yii::$app->on(Application::EVENT_AFTER_ACTION, function () use ($afterAction) {
