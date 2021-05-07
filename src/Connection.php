@@ -1859,7 +1859,7 @@ class Connection extends Component implements BootstrapInterface
                 'properties' => $message->getProperties(),
                 'body'       => mb_substr($message->getBody(), 0, 4096),
             ],
-            'trace'          => VarDumper::dumpAsString($trace),
+            'backtrace'      => $trace,
         ];
 
         $debug = ArrayHelper::merge($debug, $fields);
