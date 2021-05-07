@@ -59,6 +59,7 @@ use yii\console\Application;
 use yii\di\Instance;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Inflector;
+use yii\helpers\VarDumper;
 use yii\web\HttpException;
 use yii\web\Request;
 use yii\web\Response;
@@ -392,8 +393,8 @@ class Connection extends Component implements BootstrapInterface
 
     /** @var string|null */
     protected $_debug_request_id        = null;
-    /** @var bool */
-    protected $_debug_request_handled   = false;
+    /** @var Action|null */
+    protected $_debug_request_action    = null;
     /** @var string */
     protected $_debug_parent_message_id = null;
 
@@ -455,20 +456,6 @@ class Connection extends Component implements BootstrapInterface
                     'extraFields' => [
                         'namespace' => env('NAMESPACE'),
                         'pod'       => env('HOSTNAME'),
-                        'user_id' => function () {
-                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
-                                return null;
-                            }
-
-                            return Yii::$app->user->id;
-                        },
-                        'organization_id' => function () {
-                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
-                                return null;
-                            }
-
-                            return ArrayHelper::getValue(Yii::$app->user->identity, 'organization_id', null);
-                        },
                     ],
                 ],
             ],
@@ -481,62 +468,25 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
+            if (Yii::$app->requestedAction) {
+                $this->debugBeforeAction(Yii::$app->requestedAction);
+            }
 
-            $this->_debug_request_id      = uniqid('', true);
-            $this->_debug_request_handled = false;
+            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function (ActionEvent $event) {
+                $this->debugBeforeAction($event->action);
+            });
 
-            $beforeAction = function (Action $action) {
-                if ($action->uniqueId == 'amqp/listen') {
-                    return;
-                }
-
-                $this->debugRequestStart($action);
-            };
-
-            $afterAction = function (Action $action) {
-                if (!$this->_debug_request_handled) {
-                    return;
-                }
-
-                if ($action->uniqueId == 'amqp/listen') {
-                    return;
-                }
-
-                if (Yii::$app->request instanceof Request) {
-                    Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
-                }
-
-                if (Yii::$app->response instanceof Response) {
-                    $this->debugRequestEnd($action, Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
-                } else {
-                    $this->debugRequestEnd($action, Yii::$app->response->exitStatus);
-                }
-
-                $this->_debug_request_id      = uniqid('', true);
-                $this->_debug_request_handled = false;
-            };
-
-            $this->on(self::EVENT_BEFORE_SEND, function () use ($beforeAction) {
-                if ($this->_debug_request_handled) {
-                    return;
-                }
-
-                $beforeAction(Yii::$app->requestedAction);
-
-                $this->_debug_request_handled = true;
-            }, null, false);
-
-            Yii::$app->on(Application::EVENT_AFTER_ACTION, function () use ($afterAction) {
-                $afterAction(Yii::$app->requestedAction);
+            Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) {
+                $this->debugAfterAction($event->action);
             });
 
             $this->on(static::EVENT_AFTER_EXECUTE, function () {
                 $this->debugger->flush();
             });
 
-            register_shutdown_function(function () use ($afterAction) {
-                if (Yii::$app->requestedAction) {
-                    $afterAction(Yii::$app->requestedAction);
+            register_shutdown_function(function () {
+                if ($this->_debug_request_action) {
+                    $this->debugAfterAction($this->_debug_request_action);
                 }
 
                 $this->debugger->shutdown();
@@ -1764,6 +1714,57 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param Action $action
+     */
+    public function debugBeforeAction(Action $action)
+    {
+        if ($action->uniqueId == 'amqp/listen') {
+            return;
+        }
+
+        if ($this->_debug_request_action !== null) {
+            $this->debugAfterAction($this->_debug_request_action);
+        }
+
+        $this->_debug_request_id     = uniqid('', true);
+        $this->_debug_request_action = $action;
+
+        $this->debugRequestStart($action);
+    }
+
+    /**
+     * @param Action $action
+     */
+    public function debugAfterAction(Action $action)
+    {
+        if ($action->uniqueId == 'amqp/listen') {
+            return;
+        }
+
+        if ($this->_debug_request_action) {
+            if ($action->uniqueId !== $this->_debug_request_action->uniqueId) {
+                $this->debugAfterAction($this->_debug_request_action);
+                $this->debugBeforeAction($action);
+            }
+        } else {
+            $this->debugBeforeAction($action);
+        }
+
+        if (Yii::$app->request instanceof Request) {
+            Yii::$app->response->headers->add('amqp-debug-request-id', $this->_debug_request_id);
+        }
+
+        if (Yii::$app->response instanceof Response) {
+            $this->debugRequestEnd(Yii::$app->response->exitStatus, Yii::$app->response->statusCode);
+        } else {
+            $this->debugRequestEnd(Yii::$app->response->exitStatus);
+        }
+
+        $this->_debug_request_id     = null;
+        $this->_debug_request_action = null;
+    }
+
+    /**
+     * @param Action $action
      * @param array  $fields
      */
     protected function debugRequestStart(Action $action, array $fields = [])
@@ -1776,7 +1777,7 @@ class Connection extends Component implements BootstrapInterface
             'app_id'         => Yii::$app->id,
             'time'           => self::debugTime(),
             'request_id'     => $this->_debug_request_id,
-            'request_action' => $action->getUniqueId(),
+            'request_action' => $action->uniqueId,
         ];
 
         if (Yii::$app->request instanceof Request) {
@@ -1791,12 +1792,11 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param Action   $action
      * @param int      $exitStatus
      * @param int|null $statusCode
      * @param array    $fields
      */
-    protected function debugRequestEnd(Action $action, int $exitStatus = 0, ?int $statusCode = null, array $fields = [])
+    protected function debugRequestEnd(int $exitStatus = 0, ?int $statusCode = null, array $fields = [])
     {
         if (!$this->debugger) {
             return;
@@ -1842,6 +1842,9 @@ class Connection extends Component implements BootstrapInterface
 
         $pair_id = uniqid('', true);
 
+        $trace = debug_backtrace(0, 11);
+        $trace = array_slice($trace, 1);
+
         $debug = [
             'app_id'         => Yii::$app->id,
             'time'           => self::debugTime(),
@@ -1856,6 +1859,7 @@ class Connection extends Component implements BootstrapInterface
                 'properties' => $message->getProperties(),
                 'body'       => mb_substr($message->getBody(), 0, 4096),
             ],
+            'trace'          => VarDumper::dumpAsString($trace),
         ];
 
         $debug = ArrayHelper::merge($debug, $fields);
