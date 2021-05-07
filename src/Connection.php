@@ -1845,6 +1845,32 @@ class Connection extends Component implements BootstrapInterface
         $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 11);
         $trace = array_slice($trace, 1);
 
+        $trace = array_map(function (array $item) {
+            $fileLine = [];
+
+            if (array_key_exists('file', $item)) {
+                $fileLine[] = $item['file'];
+            }
+
+            if (array_key_exists('line', $item)) {
+                $fileLine[] = $item['line'];
+            }
+
+            $fileList = implode(':', $fileLine);
+
+            if (array_key_exists('type', $item)) {
+                return [
+                    'method' => $item['class'] . $item['type'] . $item['function'] . '()',
+                    'file'   => $fileList,
+                ];
+            } else {
+                return [
+                    'method' => $item['function'] . '()',
+                    'file'   => $fileList,
+                ];
+            }
+        }, $trace);
+
         $debug = [
             'app_id'         => Yii::$app->id,
             'time'           => self::debugTime(),
@@ -1854,12 +1880,12 @@ class Connection extends Component implements BootstrapInterface
             'sub_type'       => $sub_type,
             'target_type'    => $target_type,
             'target'         => $target,
+            'trace'          => $trace,
             'message'        => [
                 'headers'    => $message->getHeaders(),
                 'properties' => $message->getProperties(),
                 'body'       => mb_substr($message->getBody(), 0, 4096),
             ],
-            'backtrace'      => $trace,
         ];
 
         $debug = ArrayHelper::merge($debug, $fields);
