@@ -1884,6 +1884,8 @@ class Connection extends Component implements BootstrapInterface
             }
         }, $trace);
 
+        $trace = VarDumper::dumpAsString($trace);
+
         $debug = [
             'app_id'         => Yii::$app->id,
             'time'           => self::debugTime(),
