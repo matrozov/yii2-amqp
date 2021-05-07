@@ -456,6 +456,20 @@ class Connection extends Component implements BootstrapInterface
                     'extraFields' => [
                         'namespace' => env('NAMESPACE'),
                         'pod'       => env('HOSTNAME'),
+                        'user_id' => function () {
+                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
+                                return null;
+                            }
+
+                            return Yii::$app->user->id;
+                        },
+                        'organization_id' => function () {
+                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
+                                return null;
+                            }
+
+                            return ArrayHelper::getValue(Yii::$app->user->identity, 'organization_id', null);
+                        },
                     ],
                 ],
             ],
