@@ -393,8 +393,8 @@ class Connection extends Component implements BootstrapInterface
 
     /** @var string|null */
     protected $_debug_request_id        = null;
-    /** @var Action|null */
-    protected $_debug_request_action    = null;
+    /** @var string|null */
+    protected $_debug_request_route     = null;
     /** @var string */
     protected $_debug_parent_message_id = null;
 
@@ -482,16 +482,14 @@ class Connection extends Component implements BootstrapInterface
 
             $this->debugger = Instance::ensure($this->debugger);
 
-            if (Yii::$app->requestedAction) {
-                $this->debugBeforeAction(Yii::$app->requestedAction);
-            }
+            $this->debugBeforeRequest();
 
-            Yii::$app->on(Application::EVENT_BEFORE_ACTION, function (ActionEvent $event) {
-                $this->debugBeforeAction($event->action);
+            Yii::$app->on(Application::EVENT_BEFORE_REQUEST, function () {
+                $this->debugBeforeRequest();
             });
 
-            Yii::$app->on(Application::EVENT_AFTER_ACTION, function (ActionEvent $event) {
-                $this->debugAfterAction($event->action);
+            Yii::$app->on(Application::EVENT_AFTER_REQUEST, function () {
+                $this->debugAfterRequest();
             });
 
             $this->on(static::EVENT_AFTER_EXECUTE, function () {
@@ -499,8 +497,8 @@ class Connection extends Component implements BootstrapInterface
             });
 
             register_shutdown_function(function () {
-                if ($this->_debug_request_action) {
-                    $this->debugAfterAction($this->_debug_request_action);
+                if ($this->_debug_request_route !== null) {
+                    $this->debugAfterRequest();
                 }
 
                 $this->debugger->shutdown();
@@ -1727,40 +1725,41 @@ class Connection extends Component implements BootstrapInterface
     }
 
     /**
-     * @param Action $action
+     * @return string
      */
-    public function debugBeforeAction(Action $action)
+    protected function debugGetRequestRoute(): string
     {
-        if ($action->uniqueId == 'amqp/listen') {
-            return;
+        try {
+            list($route) = Yii::$app->getRequest()->resolve();
+        } catch (Throwable $e) {
+            $route = null;
         }
 
-        if ($this->_debug_request_action !== null) {
-            $this->debugAfterAction($this->_debug_request_action);
-        }
-
-        $this->_debug_request_id     = uniqid('', true);
-        $this->_debug_request_action = $action;
-
-        $this->debugRequestStart($action);
+        return $route;
     }
 
-    /**
-     * @param Action $action
-     */
-    public function debugAfterAction(Action $action)
+    public function debugBeforeRequest()
     {
-        if ($action->uniqueId == 'amqp/listen') {
+        if ($this->_debug_request_route !== null) {
             return;
         }
 
-        if ($this->_debug_request_action) {
-            if ($action->uniqueId !== $this->_debug_request_action->uniqueId) {
-                $this->debugAfterAction($this->_debug_request_action);
-                $this->debugBeforeAction($action);
-            }
-        } else {
-            $this->debugBeforeAction($action);
+        $route = $this->debugGetRequestRoute();
+
+        if ($route == 'amqp/listen') {
+            return;
+        }
+
+        $this->_debug_request_id    = uniqid('', true);
+        $this->_debug_request_route = $route;
+
+        $this->debugRequestStart($route);
+    }
+
+    public function debugAfterRequest()
+    {
+        if ($this->_debug_request_route === null) {
+            return;
         }
 
         if (Yii::$app->request instanceof Request) {
@@ -1773,25 +1772,25 @@ class Connection extends Component implements BootstrapInterface
             $this->debugRequestEnd(Yii::$app->response->exitStatus);
         }
 
-        $this->_debug_request_id     = null;
-        $this->_debug_request_action = null;
+        $this->_debug_request_id    = null;
+        $this->_debug_request_route = null;
     }
 
     /**
-     * @param Action $action
+     * @param string $route
      * @param array  $fields
      */
-    protected function debugRequestStart(Action $action, array $fields = [])
+    protected function debugRequestStart(string $route, array $fields = [])
     {
         if (!$this->debugger) {
             return;
         }
 
         $debug = [
-            'app_id'         => Yii::$app->id,
-            'time'           => self::debugTime(),
-            'request_id'     => $this->_debug_request_id,
-            'request_action' => $action->uniqueId,
+            'app_id'        => Yii::$app->id,
+            'time'          => self::debugTime(),
+            'request_id'    => $this->_debug_request_id,
+            'request_route' => $route,
         ];
 
         if (Yii::$app->request instanceof Request) {
