@@ -443,7 +443,7 @@ class Connection extends Component implements BootstrapInterface
             'class' => 'yii\elasticsearch\Connection',
             'autodetectCluster' => false,
             'nodes' => [
-                ['http_address' => 'elasticsearch.amqp-log.prod.chemexol.ru:80'],
+                ['http_address' => 'elasticsearch-data.efk.svc.cluster.local:9200'],
             ],
         ]);
 
