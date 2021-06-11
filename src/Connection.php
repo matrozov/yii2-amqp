@@ -445,6 +445,7 @@ class Connection extends Component implements BootstrapInterface
             'nodes' => [
                 ['http_address' => 'elasticsearch-data.efk.svc.cluster.local:9200'],
             ],
+            'dslVersion' => 7,
         ]);
 
         $this->debugger = [
