@@ -29,7 +29,7 @@
         "enqueue/amqp-lib": "^0.10",
         "enqueue/amqp-ext": "^0.10",
         "enqueue/amqp-bunny": "^0.10",
-		"yiisoft/yii2-elasticsearch": "2.1.x-dev",
+		"yiisoft/yii2-elasticsearch": "dev-master",
         "yiisoft/yii2-redis": "~2.0.0"
     },
     "suggest": {
