@@ -1409,9 +1409,7 @@ class Connection extends Component implements BootstrapInterface
         while (true) {
             $start = microtime(true);
 
-            $loopTimeout = max(30, (int)$timeout);
-
-            $subscriptionConsumer->consume($loopTimeout * 1000);
+            $subscriptionConsumer->consume(30000);
 
             if (time() - $lastActive > 60) {
                 $pingMessage = $this->_context->createMessage();
