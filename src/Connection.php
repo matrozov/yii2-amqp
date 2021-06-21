@@ -439,43 +439,6 @@ class Connection extends Component implements BootstrapInterface
 
         $this->serializer = Instance::ensure($this->serializer, Serializer::class);
 
-        Yii::$app->set('amqp-log', [
-            'class' => 'yii\elasticsearch\Connection',
-            'autodetectCluster' => false,
-            'nodes' => [
-                ['http_address' => 'elasticsearch-data.efk.svc.cluster.local:9200'],
-            ],
-            'dslVersion' => 7,
-        ]);
-
-        $this->debugger = [
-            'targets' => [
-                [
-                    'class' => 'matrozov\yii2amqp\debugger\targets\ElasticsearchTarget',
-                    'index' => 'amqp-log',
-                    'db'    => 'amqp-log',
-                    'extraFields' => [
-                        'namespace' => env('NAMESPACE'),
-                        'pod'       => env('HOSTNAME'),
-                        'user_id' => function () {
-                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
-                                return null;
-                            }
-
-                            return Yii::$app->user->id;
-                        },
-                        'organization_id' => function () {
-                            if (!Yii::$app->get('user', false) || Yii::$app->user->isGuest) {
-                                return null;
-                            }
-
-                            return ArrayHelper::getValue(Yii::$app->user->identity, 'organization_id', null);
-                        },
-                    ],
-                ],
-            ],
-        ];
-
         if ($this->debugger) {
             if (is_array($this->debugger) && !isset($this->debugger['class'])) {
                 $this->debugger['class'] = Debugger::class;
@@ -1898,7 +1861,7 @@ class Connection extends Component implements BootstrapInterface
             'message'        => [
                 'headers'    => $message->getHeaders(),
                 'properties' => $message->getProperties(),
-                'body'       => mb_substr($message->getBody(), 0, 4096),
+                'body'       => mb_substr($message->getBody(), 0, 16384),
             ],
         ];
 
