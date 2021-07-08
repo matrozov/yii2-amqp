@@ -1817,7 +1817,7 @@ class Connection extends Component implements BootstrapInterface
 
         $pair_id = uniqid('', true);
 
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 11);
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 21);
         $trace = array_slice($trace, 1);
 
         $trace = array_map(function (array $item) {
