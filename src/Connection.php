@@ -1497,7 +1497,7 @@ class Connection extends Component implements BootstrapInterface
             $this->beforeSend($target, $job, $redeliveryMessage);
 
             $pair_id = $this->debugMessageSendStart($target, $redeliveryMessage, 'redelivery', [
-                'job'           => $job,
+                'job'           => get_class($job),
                 'redelivery_to' => $redeliveryMessage->getProperty(self::PROPERTY_REDELIVERY_TO),
             ]);
 
