@@ -1332,11 +1332,7 @@ class Connection extends Component implements BootstrapInterface
                 $this->handleMessage($message, $consumer);
             }
             catch (Throwable $exception) {
-                if ($pair_id) {
-                    $this->debugExecuteEnd($pair_id, $exception);
-                }
-
-                throw $exception;
+                Yii::$app->errorHandler->logException($exception);
             }
 
             if ($pair_id) {
