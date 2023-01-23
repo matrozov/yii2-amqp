@@ -17,7 +17,7 @@
     },
     "require": {
         "php": ">=7.2",
-        "yiisoft/yii2": "~2.0.14"
+        "yiisoft/yii2": "~2.0.47"
     },
     "require-dev": {
         "ext-json": "*",
@@ -25,11 +25,11 @@
         "ext-pcntl": "*",
         "ext-redis": "*",
         "ext-memcache": "*",
-        "enqueue/amqp-lib": "^0.9",
-        "enqueue/amqp-ext": "^0.9",
-        "enqueue/amqp-bunny": "^0.9",
-		"yiisoft/yii2-elasticsearch": "2.1.x-dev",
-        "yiisoft/yii2-redis": "~2.0.0"
+        "enqueue/amqp-lib": "^0.10.7",
+        "enqueue/amqp-ext": "^0.10.7",
+        "enqueue/amqp-bunny": "^0.10.7",
+		"yiisoft/yii2-elasticsearch": "~2.0.0",
+        "yiisoft/yii2-redis": "~2.0.18"
     },
     "suggest": {
         "ext-json": "Need for json encode transfer and logging.",
@@ -43,5 +43,19 @@
         "psr-4": {
             "matrozov\\yii2amqp\\": "src"
         }
-    }
+    },
+    "config": {
+        "fxp-asset": {
+            "enabled": false
+        },
+        "allow-plugins": {
+            "yiisoft/yii2-composer": true
+        }
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ]
 }
