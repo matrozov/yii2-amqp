@@ -16,7 +16,7 @@
         "source": "https://github.com/matrozov/yii2-amqp"
     },
     "require": {
-        "php": "^7.2",
+        "php": ">=7.2",
         "yiisoft/yii2": "~2.0.14"
     },
     "require-dev": {
