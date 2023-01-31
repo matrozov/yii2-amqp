@@ -1306,11 +1306,12 @@ class Connection extends Component implements BootstrapInterface
 
     /**
      * @param []string|string|null $queueNames
-     * @param int $timeout
+     * @param int|null $timeout
+     * @param int|null $maxMessages
      *
      * @throws
      */
-    public function listen($queueNames = null, $timeout = null)
+    public function listen($queueNames = null, $timeout = null, $maxMessages = null)
     {
         $this->open();
 
@@ -1324,8 +1325,9 @@ class Connection extends Component implements BootstrapInterface
         }
 
         $lastActive = time();
+        $messages   = 0;
 
-        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive) {
+        $callback = function (AmqpMessage $message, AmqpConsumer $consumer) use (&$lastActive, &$messages) {
             $pair_id = $this->debugExecuteStart($consumer, $message);
 
             try {
@@ -1340,6 +1342,7 @@ class Connection extends Component implements BootstrapInterface
             }
 
             $lastActive = time();
+            $messages++;
 
             return true;
         };
@@ -1356,9 +1359,7 @@ class Connection extends Component implements BootstrapInterface
         while (true) {
             $start = microtime(true);
 
-            $loopTimeout = max(5, (int)$timeout);
-
-            $subscriptionConsumer->consume($loopTimeout * 1000);
+            $subscriptionConsumer->consume(10 * 1000 /* 10 sec */);
 
             if (time() - $lastActive > 60) {
                 $pingMessage = $this->_context->createMessage();
@@ -1381,6 +1382,10 @@ class Connection extends Component implements BootstrapInterface
             }
 
             if ((($timeout !== null) && ($timeout < 0)) || ExitSignal::isExit()) {
+                break;
+            }
+
+            if (($maxMessages !== null) && ($messages >= $maxMessages)) {
                 break;
             }
         }

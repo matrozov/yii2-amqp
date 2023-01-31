@@ -11,7 +11,8 @@ use yii\helpers\Console;
  * @package matrozov\yii2amqp
  *
  * @property Connection $connection
- * @property int        $timeout
+ * @property int|null   $timeout
+ * @property int|null   $max_message
  */
 class Command extends Controller
 {
@@ -21,6 +22,9 @@ class Command extends Controller
     /* @var int|null $timeout */
     public $timeout;
 
+    /* @var int|null $max_message */
+    public $max_message;
+
     /**
      * @inheritdoc
      */
@@ -29,6 +33,7 @@ class Command extends Controller
         $options = parent::options($actionID);
 
         $options[] = 'timeout';
+        $options[] = 'max_message';
 
         return $options;
     }
@@ -40,6 +45,7 @@ class Command extends Controller
     {
         return array_merge(parent::optionAliases(), [
             't' => 'timeout',
+            'm' => 'max_message',
         ]);
     }
 
@@ -50,6 +56,6 @@ class Command extends Controller
     {
         $queueNames = func_get_args();
 
-        $this->connection->listen($queueNames, $this->timeout);
+        $this->connection->listen($queueNames, $this->timeout, $this->max_message);
     }
 }
